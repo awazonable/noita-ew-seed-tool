@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noita EW Perk Deck Simulator</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --bg2: #16213e;
+    --bg3: #0f3460;
+    --accent: #e94560;
+    --text: #e0e0e0;
+    --muted: #888;
+    --border: #2a2a4a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #fff;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.875rem;
+    margin-bottom: 24px;
+  }
+  .form {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 520px;
+    margin-bottom: 28px;
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: 'Consolas', monospace;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus { border-color: var(--accent); }
+  .hint { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+  .hint code {
+    background: rgba(255,255,255,0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+  }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    width: 100%;
+  }
+  button:hover { opacity: 0.85; }
+  .error {
+    color: #ff6b6b;
+    font-size: 0.875rem;
+    padding: 10px 14px;
+    background: rgba(255,107,107,0.1);
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 6px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .results { max-width: 700px; }
+  .mountain {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .mountain-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .perks {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .perk {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    flex: 1 1 auto;
+    min-width: 140px;
+  }
+  .perk-name { font-weight: 600; color: #fff; }
+  .perk-id { font-size: 0.7rem; color: var(--muted); font-family: 'Consolas', monospace; margin-top: 2px; }
+  .deck-section {
+    margin-top: 24px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .deck-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .deck-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+  }
+  .deck-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+  .deck-num {
+    color: var(--muted);
+    font-family: 'Consolas', monospace;
+    min-width: 24px;
+    text-align: right;
+  }
+  .deck-name { color: var(--text); }
+  #results { display: none; }
+</style>
+</head>
+<body>
+<h1>Noita EW Perk Deck Simulator</h1>
+<p class="subtitle">Entangled Worlds (EW) — 聖なる山のパーク一覧を計算します</p>
+
+<div class="form">
+  <div class="field">
+    <label for="seed">World Seed</label>
+    <input type="text" id="seed" placeholder="例: 786433000" autocomplete="off" spellcheck="false">
+    <p class="hint">整数 (0 〜 4294967295)</p>
+  </div>
+  <div class="field">
+    <label for="steamid">SteamID64 (16進数)</label>
+    <input type="text" id="steamid" placeholder="例: 0110000100b7c4ce" autocomplete="off" spellcheck="false">
+    <p class="hint">16文字の16進数文字列 — Steam の URL から取得: <code>steamid.io</code></p>
+  </div>
+  <button onclick="calculate()">計算する</button>
+</div>
+
+<div class="error" id="error"></div>
+
+<div id="results">
+  <div class="results" id="mountains"></div>
+  <div class="deck-section">
+    <div class="deck-title">完全デッキ順</div>
+    <div class="deck-grid" id="deck-list"></div>
+  </div>
+</div>
+
+<script src="perk-data.js"></script>
+<script src="perk-calculator.js"></script>
+<script>
+const MOUNTAIN_NAMES = [
+  '聖なる山 1 (鉱山 → 炭坑)',
+  '聖なる山 2 (炭坑 → 雪の洞窟)',
+  '聖なる山 3 (雪の洞窟 → Hiisi 基地)',
+  '聖なる山 4 (Hiisi 基地 → 地下ジャングル)',
+  '聖なる山 5 (地下ジャングル → 金庫)',
+  '聖なる山 6 (金庫 → 芸術の神殿)',
+  '聖なる山 7 (芸術の神殿 → 実験室)',
+];
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg;
+  el.style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+}
+
+function clearError() {
+  document.getElementById('error').style.display = 'none';
+}
+
+function calculate() {
+  clearError();
+
+  const seedStr = document.getElementById('seed').value.trim();
+  const steamIdStr = document.getElementById('steamid').value.trim().toLowerCase();
+
+  if (!seedStr) return showError('World Seed を入力してください。');
+  if (!steamIdStr) return showError('SteamID64 (16進数) を入力してください。');
+
+  const seed = parseInt(seedStr, 10);
+  if (isNaN(seed) || seed < 0 || seed > 4294967295) {
+    return showError('World Seed は 0 〜 4294967295 の整数を入力してください。');
+  }
+
+  if (!/^[0-9a-f]{16}$/i.test(steamIdStr)) {
+    return showError('SteamID64 は16文字の16進数文字列で入力してください。例: 0110000100b7c4ce');
+  }
+
+  const deck = buildPerkDeck(seed, steamIdStr, PERK_POOL);
+  const mountains = getPerksPerMountain(deck);
+  const perkMap = Object.fromEntries(PERK_POOL.map(p => [p.id, p]));
+
+  const mountainsEl = document.getElementById('mountains');
+  mountainsEl.innerHTML = '';
+  mountains.forEach((perks, i) => {
+    const div = document.createElement('div');
+    div.className = 'mountain';
+    div.innerHTML = `<div class="mountain-title">${MOUNTAIN_NAMES[i]}</div>
+      <div class="perks">${perks.map(id => {
+        const p = perkMap[id] || { name: id };
+        return `<div class="perk"><div class="perk-name">${p.name}</div><div class="perk-id">${id}</div></div>`;
+      }).join('')}</div>`;
+    mountainsEl.appendChild(div);
+  });
+
+  const deckListEl = document.getElementById('deck-list');
+  deckListEl.innerHTML = deck.map((id, i) => {
+    const p = perkMap[id] || { name: id };
+    return `<div class="deck-entry"><span class="deck-num">${i + 1}.</span><span class="deck-name">${p.name}</span></div>`;
+  }).join('');
+
+  document.getElementById('results').style.display = 'block';
+}
+
+// Allow Enter key to submit
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') calculate();
+});
+</script>
+</body>
+</html>
