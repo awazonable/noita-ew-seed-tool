@@ -1,83 +1,128 @@
-// Noita EW perk generation algorithm
-// Based on CLAUDE.md specification
+// Noita EW perk generation — Park-Miller LGM PRNG
+// Source: Technical:Noita_PRNG wiki + quant.ew EW source code
 
-let _world_seed = 0;
-let _rng_seed_x = 0;
-let _rng_seed_y = 0;
-
-const _buf = new ArrayBuffer(8);
-const _view = new DataView(_buf);
-
-function setWorldSeed(seed) {
-  _world_seed = seed >>> 0;
+// Load PERK_LIST from perk-data.js (Node) or global (browser)
+var _PERK_LIST;
+if (typeof module !== 'undefined') {
+  _PERK_LIST = require('./perk-data.js').PERK_LIST;
+} else {
+  _PERK_LIST = typeof PERK_LIST !== 'undefined' ? PERK_LIST : [];
 }
 
-// IEEE 754 double → upper 32 bits of bit pattern (sign + exponent + high mantissa)
-// In little-endian layout, bytes 4-7 hold the upper half of the 64-bit double
-function _floatHigh32(v) {
-  _view.setFloat64(0, v, true);
-  return _view.getUint32(4, true);
+// ---- PRNG ----
+
+function noitaSetRandomSeed(worldSeed, x, y) {
+  var w = worldSeed & 0x7fffffff;
+  x = x & 0x7fffffff;
+  y = y & 0x7fffffff;
+  var s = (Math.imul(w, 0x19a065b5) + x) & 0x7fffffff;
+  s = (Math.imul(s, 0x19a065b5) + y) & 0x7fffffff;
+  return s === 0 ? 1 : s;
 }
 
-function SetRandomSeedHelper(a, b) {
-  const ax = _floatHigh32(a);
-  const bx = _floatHigh32(b);
-  _rng_seed_x = (ax ^ (_world_seed >>> 13)) >>> 0;
-  _rng_seed_y = bx >>> 0;
+function noitaNextState(state) {
+  return Number(BigInt(state) * 16807n % 2147483647n);
 }
 
-function SetRandomSeed(x, y) {
-  SetRandomSeedHelper(x, y);
-  const ws = _world_seed;
-  for (let i = 0; i < (ws & 3); i++) Next();
+function noitaRandom(state) {
+  var next = noitaNextState(state);
+  return [next, next / 2147483647];
 }
 
-function Next() {
-  _rng_seed_x = (Math.imul(214013, _rng_seed_x) + 2531011) >>> 0;
-  _rng_seed_y = (Math.imul(17405, _rng_seed_y) + 10395331) >>> 0;
-  return ((_rng_seed_x ^ _rng_seed_y) >>> 0) & 0x7FFF;
+function noitaRandomInt(state, a, b) {
+  var res = noitaRandom(state);
+  return [res[0], Math.floor(res[1] * (b - a + 1)) + a];
 }
 
-// Compute sx, sy offset from SteamID64 hex string
-// Lua: string.sub(id,8,12) → JS: id.substring(7,12)
-// Lua: string.sub(id,12)   → JS: id.substring(11)
-function computeOffsets(steamId) {
-  const sx = parseInt(steamId.substring(7, 12), 16);
-  const sy = parseInt(steamId.substring(11), 16);
-  return { sx, sy };
+// ---- EW seed from decimal SteamID64 ----
+// Accepts decimal string (e.g. "76561198012345678")
+function getEwSeed(steamId) {
+  var id = BigInt(steamId);
+  var hex = id.toString(16).padStart(16, '0');
+  // Lua: string.sub(id, 8, 12) → hex[7..11], string.sub(id, 12) → hex[11..]
+  var sx = parseInt(hex.slice(7, 12), 16) || 0;
+  var sy = parseInt(hex.slice(11), 16) || 0;
+  return { sx: sx, sy: sy, hex: hex };
 }
 
-// Build perk deck for given world seed and SteamID64
-// Returns array of perk IDs in draw order
-function buildPerkDeck(worldSeed, steamId, perkPool) {
-  setWorldSeed(worldSeed >>> 0);
-  const { sx, sy } = computeOffsets(steamId);
-  SetRandomSeed(1.0 + sx, 2.0 + sy);
+// ---- Deck generation ----
+// Mirrors quant.ew override_perk_list.lua → perk_get_spawn_order()
+function generatePerkDeck(worldSeed, sx, sy) {
+  var state = noitaSetRandomSeed(worldSeed, 1 + sx, 2 + sy);
 
-  const pool = perkPool.map(p => p.id);
-  const deck = [];
-  while (pool.length > 0) {
-    const idx = Next() % pool.length;
-    deck.push(pool[idx]);
-    pool.splice(idx, 1);
+  // Build deck: stackable non-rare perks get 1..maxPool copies
+  var deck = [];
+  for (var i = 0; i < _PERK_LIST.length; i++) {
+    var entry = _PERK_LIST[i];
+    var id = entry[0], stackable = entry[2], maxPool = entry[3], rare = entry[4];
+    var count;
+    if (!stackable || rare) {
+      count = 1;
+    } else {
+      var r = noitaRandomInt(state, 1, maxPool);
+      state = r[0]; count = r[1];
+    }
+    for (var k = 0; k < count; k++) deck.push(id);
   }
-  return deck;
+
+  // Fisher-Yates shuffle
+  for (var i = deck.length - 1; i > 0; i--) {
+    var r = noitaRandomInt(state, 0, i);
+    state = r[0];
+    var j = r[1];
+    var tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp;
+  }
+
+  // Spread duplicates: no two identical perks within MIN_DIST positions
+  var MIN_DIST = 4;
+  var result = deck.slice();
+  for (var i = 0; i < result.length; i++) {
+    for (var j = Math.max(0, i - MIN_DIST); j < i; j++) {
+      if (result[j] === result[i]) {
+        var perk = result.splice(i, 1)[0];
+        result.splice(Math.min(i + MIN_DIST, result.length), 0, perk);
+        break;
+      }
+    }
+  }
+
+  return result;
 }
 
-// Return perks per mountain (3 perks each, 7 mountains)
-function getPerksPerMountain(deck) {
-  const PERKS_PER_MOUNTAIN = 3;
-  const MOUNTAIN_COUNT = 7;
-  const mountains = [];
-  for (let i = 0; i < MOUNTAIN_COUNT; i++) {
-    mountains.push(deck.slice(i * PERKS_PER_MOUNTAIN, (i + 1) * PERKS_PER_MOUNTAIN));
+// Return 3 perks per Holy Mountain for numMountains mountains
+function getHolyMountainPerks(deck, numMountains) {
+  if (numMountains === undefined) numMountains = 12;
+  var mountains = [];
+  for (var i = 0; i < numMountains; i++) {
+    mountains.push(deck.slice(i * 3, i * 3 + 3));
   }
   return mountains;
 }
 
+// ---- Backward-compat wrappers (used by existing tests) ----
+
+// computeOffsets: accepts 16-char hex steamId string (original format)
+function computeOffsets(steamId) {
+  var sx = parseInt(steamId.substring(7, 12), 16);
+  var sy = parseInt(steamId.substring(11), 16);
+  return { sx: sx, sy: sy };
+}
+
+// buildPerkDeck: hex steamId, perkPool ignored (uses internal PERK_LIST)
+function buildPerkDeck(worldSeed, steamId, perkPool) {
+  var off = computeOffsets(steamId);
+  return generatePerkDeck(worldSeed >>> 0, off.sx, off.sy);
+}
+
+// getPerksPerMountain: returns first 7 mountains
+function getPerksPerMountain(deck) {
+  return getHolyMountainPerks(deck, 7);
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
-    setWorldSeed, SetRandomSeedHelper, SetRandomSeed, Next,
+    noitaSetRandomSeed, noitaNextState, noitaRandom, noitaRandomInt,
+    getEwSeed, generatePerkDeck, getHolyMountainPerks,
     computeOffsets, buildPerkDeck, getPerksPerMountain,
   };
 }
