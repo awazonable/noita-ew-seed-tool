@@ -342,9 +342,10 @@ body {
     </details>
     <div class="footer">
       <strong>Note:</strong> This simulator replicates the EW randomize_perks feature.
-      The PRNG formula and perk deck algorithm are reverse-engineered from Noita's binary
-      (Park-Miller LGM). Results may differ slightly from actual game output if perk_list.lua
-      has been updated. Requires <code>randomize_perks = true</code> in EW proxy settings (default: on).
+      EW overrides the per-player seed via <code>SetRandomSeed(1+sx, 2+sy)</code> and delegates
+      to vanilla <code>perk_get_spawn_order</code>, which uses Noita's dual-LCG PRNG
+      (214013×x+2531011 XOR 17405×y+10395331, 15-bit output) with draw-without-replacement.
+      Requires <code>randomize_perks = true</code> in EW proxy settings (default: on).
     </div>
   </div>
 </div>
@@ -352,35 +353,38 @@ body {
 <script src="perk-data.js"></script>
 <script src="perk-calculator.js"></script>
 <script>
-// ---- Perk category colors ----
+// ---- Perk category colors (keyed by correct vanilla perk IDs) ----
 const PERK_CATEGORIES = {
+  // Offensive
   EXTRA_MANA: 'blue', FASTER_WANDS: 'blue', EXTRA_SLOTS: 'blue',
-  ALWAYS_CAST: 'blue', ELECTRICITY: 'blue', FIRE_BURST: 'blue',
-  BREATH_OF_FIRE: 'blue', CONTACT_DAMAGE: 'blue', CRITICAL_HIT: 'blue',
-  FAST_PROJECTILES: 'blue', EXTRA_BOUNCE: 'blue', LOW_HP_DAMAGE_BOOST: 'blue',
+  ALWAYS_CAST: 'blue', ELECTRICITY: 'blue', CONTACT_DAMAGE: 'blue',
+  CRITICAL_HIT: 'blue', FAST_PROJECTILES: 'blue', BOUNCE: 'blue',
+  LOW_HP_DAMAGE_BOOST: 'blue', EXTRA_KNOCKBACK: 'blue', LOWER_SPREAD: 'blue',
+  DUPLICATE_PROJECTILE: 'blue', PROJECTILE_HOMING: 'blue', PROJECTILE_HOMING_SHOOTER: 'blue',
 
+  // Utility
   EXTRA_PERK: 'gold', PERKS_LOTTERY: 'gold', EDIT_WANDS_EVERYWHERE: 'gold',
-  HP_REGENERATION: 'gold', HP_REGENERATION_TINY: 'gold', PERMANENT_SHIELD: 'gold',
-  REPELLING_CAPE: 'gold', EXTRA_MONEY: 'gold', ATTRACT_ITEMS: 'gold',
-  HEARTS_MORE: 'gold', HEARTS_MORE_EXTRA_HP: 'gold', RESPAWN: 'gold',
-  TELEKINESIS: 'gold', INVISIBILITY: 'gold', PROTECTION_ALL: 'gold',
-  FASTER_MOVEMENT: 'gold', FASTER_LEVITATION: 'gold',
+  SHIELD: 'gold', REPELLING_CAPE: 'gold', EXTRA_MONEY: 'gold',
+  ATTRACT_ITEMS: 'gold', EXTRA_HP: 'gold', HEARTS_MORE_EXTRA_HP: 'gold',
+  TELEKINESIS: 'gold', INVISIBILITY: 'gold', STAINLESS_ARMOUR: 'gold',
+  FASTER_LEVITATION: 'gold', MOVEMENT_FASTER: 'gold', REMOVE_FOG_OF_WAR: 'gold',
+  EXTRA_SHOP_ITEM: 'gold', HOVER_BOOST: 'gold', WAND_RADAR: 'gold',
+  LASER_AIM: 'gold', LEVITATION_TRAIL: 'gold',
 
-  FIRE_IMMUNITY: 'teal', EXPLOSION_IMMUNITY: 'teal', TOXIC_IMMUNITY: 'teal',
-  ELECTRICITY_IMMUNITY: 'teal', RADIOACTIVITY_IMMUNITY: 'teal',
-  MELEE_IMMUNITY: 'teal', PROJECTILE_IMMUNITY: 'teal',
-  ICE_IMMUNITY: 'teal', SLICE_IMMUNITY: 'teal', DRILL_IMMUNITY: 'teal',
-  CURSE_WITHER_PROTECTION: 'teal',
+  // Immunity
+  PROTECTION_FIRE: 'teal', PROTECTION_EXPLOSION: 'teal',
+  PROTECTION_RADIOACTIVITY: 'teal', PROTECTION_MELEE: 'teal',
+  PROTECTION_ELECTRICITY: 'teal',
 
-  GLASS_CANNON: 'red', HUNGER: 'red', WEAKNESS: 'red', TELEPORTITIS: 'red',
-  DARKNESS: 'red', HIGH_GRAVITY: 'red', NO_WAND_EDITING: 'red',
-  BLOODY_CURSE: 'red', SLOWER_MOVEMENT: 'red', FASTING: 'red',
-  HEARTS_ADDICT: 'red', CURSE_WITHER: 'red',
+  // Risky
+  GLASS_CANNON: 'red', TELEPORTITIS: 'red', NO_WAND_EDITING: 'red',
+  WORM_ATTRACTOR: 'red', FUNGAL_DISEASE: 'red', NO_MORE_KNOCKBACK: 'red',
 
-  ATTACK_FOOT: 'purple', LEGGY_FEET: 'purple', WORM_BLOOD: 'purple',
-  OIL_BLOOD: 'purple', SLIME_BLOOD: 'purple', ACID_BLOOD: 'purple',
-  PLAGUE_RATS: 'purple', VOMIT_RATS: 'purple', CORDYCEPS: 'purple',
-  FUNGAL_COLONY: 'purple', TENTACLE_EYES: 'purple', VAMPIRISM: 'purple',
+  // Mutation
+  ATTACK_FOOT: 'purple', BLEED_OIL: 'purple', BLEED_SLIME: 'purple',
+  BLEED_GAS: 'purple', PLAGUE_RATS: 'purple', VOMIT_RATS: 'purple',
+  CORDYCEPS: 'purple', MOLD: 'purple', VAMPIRISM: 'purple',
+  ANGRY_GHOST: 'purple', HUNGRY_GHOST: 'purple', DEATH_GHOST: 'purple',
 };
 
 const CAT_COLORS = {
@@ -582,7 +586,7 @@ function renderDebug(seedStr, results) {
     results.map(r =>
       `<div class="player-debug"><span>${escHtml(r.name)}</span> · steam_id=${escHtml(r.steamId)} · hex=${r.hex} · sx=${r.sx} sy=${r.sy} · SetRandomSeed(${1 + r.sx}, ${2 + r.sy})</div>`
     ).join('') +
-    `<div class="debug-note">Algorithm: EW override_perk_list.lua → perk_get_spawn_order() with Noita LGM PRNG (world_seed × 0x19a065b5 + x) × 0x19a065b5 + y mod 2³¹−1</div>`;
+    `<div class="debug-note">Algorithm: EW SetRandomSeed(1+sx, 2+sy) → vanilla perk_get_spawn_order() → dual-LCG (214013×x+2531011 XOR 17405×y+10395331), 15-bit, draw without replacement</div>`;
 }
 
 // ---- Utilities ----
