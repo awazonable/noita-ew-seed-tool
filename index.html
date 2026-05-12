@@ -1,269 +1,603 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Noita EW Perk Deck Simulator</title>
+<title>EW Perk Viewer</title>
 <style>
-  :root {
-    --bg: #1a1a2e;
-    --bg2: #16213e;
-    --bg3: #0f3460;
-    --accent: #e94560;
-    --text: #e0e0e0;
-    --muted: #888;
-    --border: #2a2a4a;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
-    padding: 24px 16px;
-  }
-  h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-    color: #fff;
-  }
-  .subtitle {
-    color: var(--muted);
-    font-size: 0.875rem;
-    margin-bottom: 24px;
-  }
-  .form {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    max-width: 520px;
-    margin-bottom: 28px;
-  }
-  .field {
-    margin-bottom: 16px;
-  }
-  label {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
-  }
-  input {
-    width: 100%;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    color: var(--text);
-    font-size: 0.95rem;
-    font-family: 'Consolas', monospace;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  input:focus { border-color: var(--accent); }
-  .hint { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
-  .hint code {
-    background: rgba(255,255,255,0.08);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-family: 'Consolas', monospace;
-  }
-  button {
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 10px 24px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s;
-    width: 100%;
-  }
-  button:hover { opacity: 0.85; }
-  .error {
-    color: #ff6b6b;
-    font-size: 0.875rem;
-    padding: 10px 14px;
-    background: rgba(255,107,107,0.1);
-    border: 1px solid rgba(255,107,107,0.3);
-    border-radius: 6px;
-    margin-bottom: 20px;
-    display: none;
-  }
-  .results { max-width: 700px; }
-  .mountain {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin-bottom: 10px;
-  }
-  .mountain-title {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  .perks {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .perk {
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 0.875rem;
-    flex: 1 1 auto;
-    min-width: 140px;
-  }
-  .perk-name { font-weight: 600; color: #fff; }
-  .perk-id { font-size: 0.7rem; color: var(--muted); font-family: 'Consolas', monospace; margin-top: 2px; }
-  .deck-section {
-    margin-top: 24px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-  }
-  .deck-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--muted);
-    margin-bottom: 12px;
-  }
-  .deck-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 6px;
-  }
-  .deck-entry {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
-  }
-  .deck-num {
-    color: var(--muted);
-    font-family: 'Consolas', monospace;
-    min-width: 24px;
-    text-align: right;
-  }
-  .deck-name { color: var(--text); }
-  #results { display: none; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  background: #0a0d14;
+  color: #e2e8f0;
+  font-family: 'Courier New', monospace;
+}
+
+/* Header */
+.header {
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 20px 28px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  background: rgba(255,255,255,0.02);
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.header span {
+  font-size: 11px;
+  color: #475569;
+}
+
+.main { padding: 24px 28px; max-width: 1600px; }
+
+/* Config panel */
+.config {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.config-left { display: flex; flex-direction: column; gap: 14px; }
+.field label {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.field input, .field select {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: #f1f5f9;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.field select {
+  background: #1e2433;
+}
+.field input:focus, .field select:focus {
+  border-color: rgba(99,102,241,0.6);
+}
+
+/* Players config */
+.players-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.players-header label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.btn-add {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px;
+  color: #94a3b8;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-add:hover { background: rgba(255,255,255,0.12); }
+
+.player-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 7px;
+}
+.player-row input {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: #cbd5e1;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.player-row input:focus { border-color: rgba(99,102,241,0.4); }
+.player-name-input { width: 120px; flex-shrink: 0; }
+.player-id-input { flex: 1; }
+.btn-remove {
+  background: none;
+  border: none;
+  color: #475569;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.btn-remove:hover { color: #94a3b8; }
+
+/* Generate button */
+.generate-row {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.btn-generate {
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.6);
+  border-radius: 4px;
+  color: #a5b4fc;
+  padding: 9px 24px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.btn-generate:hover { background: rgba(99,102,241,0.3); }
+.error-msg { font-size: 12px; color: #f87171; }
+
+/* Legend */
+.legend {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.legend-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.legend-info { font-size: 10px; color: #475569; }
+
+/* Grid */
+.grid-wrap { overflow-x: auto; margin-bottom: 20px; }
+.perk-grid {
+  display: grid;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+  min-width: 100%;
+}
+.grid-header-cell {
+  padding: 10px 10px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grid-header-cell.player-col {
+  padding: 10px 14px;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+}
+.shared-badge { color: #f59e0b; font-size: 9px; }
+
+.grid-player-label {
+  padding: 10px 14px;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  font-size: 12px;
+  color: #94a3b8;
+  word-break: break-all;
+  min-width: 0;
+}
+.player-label-name { color: #cbd5e1; font-weight: 600; margin-bottom: 2px; }
+.player-label-id { font-size: 10px; color: #475569; }
+
+.grid-perk-cell {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Shared row */
+.shared-divider {
+  padding: 6px 14px;
+  background: rgba(251,191,36,0.04);
+  border-top: 1px solid rgba(251,191,36,0.2);
+  font-size: 10px;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.grid-shared-label {
+  padding: 8px 14px;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  background: rgba(251,191,36,0.03);
+  font-size: 11px;
+  color: #78350f;
+  display: flex;
+  align-items: center;
+}
+.grid-shared-cell {
+  padding: 8px 10px;
+  background: rgba(251,191,36,0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Perk badge */
+.perk-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 3px;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+.perk-badge.small { padding: 2px 7px; font-size: 11px; }
+
+/* Debug section */
+.debug-section {
+  margin-top: 20px;
+  font-size: 11px;
+}
+.debug-section summary { color: #475569; cursor: pointer; }
+.debug-body {
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+  color: #64748b;
+  line-height: 1.8;
+}
+.debug-body span { color: #94a3b8; }
+.debug-body .player-debug { margin-top: 6px; }
+.debug-body .player-debug span { color: #cbd5e1; }
+.debug-note { margin-top: 8px; color: #475569; font-size: 10px; }
+
+/* Footer */
+.footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 10px;
+  color: #334155;
+  line-height: 1.7;
+}
+.footer strong { color: #475569; }
+.footer code { color: #475569; }
+
+#results { display: none; }
 </style>
 </head>
 <body>
-<h1>Noita EW Perk Deck Simulator</h1>
-<p class="subtitle">Entangled Worlds (EW) — 聖なる山のパーク一覧を計算します</p>
-
-<div class="form">
-  <div class="field">
-    <label for="seed">World Seed</label>
-    <input type="text" id="seed" placeholder="例: 786433000" autocomplete="off" spellcheck="false">
-    <p class="hint">整数 (0 〜 4294967295)</p>
-  </div>
-  <div class="field">
-    <label for="steamid">SteamID64 (16進数)</label>
-    <input type="text" id="steamid" placeholder="例: 0110000100b7c4ce" autocomplete="off" spellcheck="false">
-    <p class="hint">16文字の16進数文字列 — Steam の URL から取得: <code>steamid.io</code></p>
-  </div>
-  <button onclick="calculate()">計算する</button>
+<div class="header">
+  <h1>EW Perk Viewer</h1>
+  <span>Noita Entangled Worlds · per-player perk deck simulator</span>
 </div>
 
-<div class="error" id="error"></div>
+<div class="main">
+  <div class="config">
+    <!-- Left: seed + mountains -->
+    <div class="config-left">
+      <div class="field">
+        <label>World Seed</label>
+        <input type="text" id="world-seed" placeholder="e.g. 1234567890" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Holy Mountains shown</label>
+        <select id="visible-mountains">
+          <option value="4">4</option>
+          <option value="6">6</option>
+          <option value="8" selected>8</option>
+          <option value="10">10</option>
+          <option value="12">12</option>
+        </select>
+      </div>
+    </div>
 
-<div id="results">
-  <div class="results" id="mountains"></div>
-  <div class="deck-section">
-    <div class="deck-title">完全デッキ順</div>
-    <div class="deck-grid" id="deck-list"></div>
+    <!-- Right: players -->
+    <div>
+      <div class="players-header">
+        <label>Players (Steam ID 64 — decimal)</label>
+        <button class="btn-add" id="btn-add-player">+ Add Player</button>
+      </div>
+      <div id="players-list"></div>
+    </div>
+  </div>
+
+  <div class="generate-row">
+    <button class="btn-generate" id="btn-generate">GENERATE PERK DECKS</button>
+    <span class="error-msg" id="error-msg"></span>
+  </div>
+
+  <div id="results">
+    <div class="legend" id="legend"></div>
+    <div class="grid-wrap">
+      <div class="perk-grid" id="perk-grid"></div>
+    </div>
+    <details class="debug-section" id="debug-section">
+      <summary>Debug: seed calculation</summary>
+      <div class="debug-body" id="debug-body"></div>
+    </details>
+    <div class="footer">
+      <strong>Note:</strong> This simulator replicates the EW randomize_perks feature.
+      The PRNG formula and perk deck algorithm are reverse-engineered from Noita's binary
+      (Park-Miller LGM). Results may differ slightly from actual game output if perk_list.lua
+      has been updated. Requires <code>randomize_perks = true</code> in EW proxy settings (default: on).
+    </div>
   </div>
 </div>
 
 <script src="perk-data.js"></script>
 <script src="perk-calculator.js"></script>
 <script>
-const MOUNTAIN_NAMES = [
-  '聖なる山 1 (鉱山 → 炭坑)',
-  '聖なる山 2 (炭坑 → 雪の洞窟)',
-  '聖なる山 3 (雪の洞窟 → Hiisi 基地)',
-  '聖なる山 4 (Hiisi 基地 → 地下ジャングル)',
-  '聖なる山 5 (地下ジャングル → 金庫)',
-  '聖なる山 6 (金庫 → 芸術の神殿)',
-  '聖なる山 7 (芸術の神殿 → 実験室)',
+// ---- Perk category colors ----
+const PERK_CATEGORIES = {
+  EXTRA_MANA: 'blue', FASTER_WANDS: 'blue', EXTRA_SLOTS: 'blue',
+  ALWAYS_CAST: 'blue', ELECTRICITY: 'blue', FIRE_BURST: 'blue',
+  BREATH_OF_FIRE: 'blue', CONTACT_DAMAGE: 'blue', CRITICAL_HIT: 'blue',
+  FAST_PROJECTILES: 'blue', EXTRA_BOUNCE: 'blue', LOW_HP_DAMAGE_BOOST: 'blue',
+
+  EXTRA_PERK: 'gold', PERKS_LOTTERY: 'gold', EDIT_WANDS_EVERYWHERE: 'gold',
+  HP_REGENERATION: 'gold', HP_REGENERATION_TINY: 'gold', PERMANENT_SHIELD: 'gold',
+  REPELLING_CAPE: 'gold', EXTRA_MONEY: 'gold', ATTRACT_ITEMS: 'gold',
+  HEARTS_MORE: 'gold', HEARTS_MORE_EXTRA_HP: 'gold', RESPAWN: 'gold',
+  TELEKINESIS: 'gold', INVISIBILITY: 'gold', PROTECTION_ALL: 'gold',
+  FASTER_MOVEMENT: 'gold', FASTER_LEVITATION: 'gold',
+
+  FIRE_IMMUNITY: 'teal', EXPLOSION_IMMUNITY: 'teal', TOXIC_IMMUNITY: 'teal',
+  ELECTRICITY_IMMUNITY: 'teal', RADIOACTIVITY_IMMUNITY: 'teal',
+  MELEE_IMMUNITY: 'teal', PROJECTILE_IMMUNITY: 'teal',
+  ICE_IMMUNITY: 'teal', SLICE_IMMUNITY: 'teal', DRILL_IMMUNITY: 'teal',
+  CURSE_WITHER_PROTECTION: 'teal',
+
+  GLASS_CANNON: 'red', HUNGER: 'red', WEAKNESS: 'red', TELEPORTITIS: 'red',
+  DARKNESS: 'red', HIGH_GRAVITY: 'red', NO_WAND_EDITING: 'red',
+  BLOODY_CURSE: 'red', SLOWER_MOVEMENT: 'red', FASTING: 'red',
+  HEARTS_ADDICT: 'red', CURSE_WITHER: 'red',
+
+  ATTACK_FOOT: 'purple', LEGGY_FEET: 'purple', WORM_BLOOD: 'purple',
+  OIL_BLOOD: 'purple', SLIME_BLOOD: 'purple', ACID_BLOOD: 'purple',
+  PLAGUE_RATS: 'purple', VOMIT_RATS: 'purple', CORDYCEPS: 'purple',
+  FUNGAL_COLONY: 'purple', TENTACLE_EYES: 'purple', VAMPIRISM: 'purple',
+};
+
+const CAT_COLORS = {
+  blue:    { bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.5)',  text: '#93c5fd' },
+  gold:    { bg: 'rgba(251,191,36,0.15)', border: 'rgba(251,191,36,0.5)',  text: '#fcd34d' },
+  teal:    { bg: 'rgba(20,184,166,0.15)', border: 'rgba(20,184,166,0.5)',  text: '#5eead4' },
+  red:     { bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.5)',   text: '#fca5a5' },
+  purple:  { bg: 'rgba(168,85,247,0.15)', border: 'rgba(168,85,247,0.5)',  text: '#d8b4fe' },
+  default: { bg: 'rgba(255,255,255,0.07)',border: 'rgba(255,255,255,0.15)',text: '#e2e8f0' },
+};
+
+const CAT_LABELS = { blue: 'Offensive', gold: 'Utility', teal: 'Immunity', red: 'Risky', purple: 'Mutation' };
+
+// ---- State ----
+let players = [
+  { name: 'Player 1', steamId: '' },
+  { name: 'Player 2', steamId: '' },
 ];
 
+function renderPlayers() {
+  const list = document.getElementById('players-list');
+  list.innerHTML = '';
+  players.forEach((pl, i) => {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    row.innerHTML = `
+      <input class="player-name-input" type="text" placeholder="Name" value="${escHtml(pl.name)}" data-idx="${i}" data-field="name" autocomplete="off">
+      <input class="player-id-input" type="text" placeholder="76561198XXXXXXXXX" value="${escHtml(pl.steamId)}" data-idx="${i}" data-field="steamId" autocomplete="off" spellcheck="false">
+      ${players.length > 1 ? `<button class="btn-remove" data-idx="${i}">×</button>` : ''}
+    `;
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('btn-add-player').onclick = function() {
+  players.push({ name: 'Player ' + (players.length + 1), steamId: '' });
+  renderPlayers();
+};
+
+document.getElementById('players-list').addEventListener('input', function(e) {
+  const t = e.target;
+  if (t.dataset.idx !== undefined && t.dataset.field) {
+    players[+t.dataset.idx][t.dataset.field] = t.value;
+  }
+});
+
+document.getElementById('players-list').addEventListener('click', function(e) {
+  if (e.target.classList.contains('btn-remove')) {
+    const idx = +e.target.dataset.idx;
+    players.splice(idx, 1);
+    renderPlayers();
+  }
+});
+
+// ---- Legend ----
+function renderLegend(deckSize) {
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+  Object.entries(CAT_LABELS).forEach(([cat, label]) => {
+    const c = CAT_COLORS[cat];
+    const span = document.createElement('span');
+    span.className = 'legend-tag';
+    span.textContent = label;
+    span.style.cssText = `background:${c.bg};border:1px solid ${c.border};color:${c.text}`;
+    el.appendChild(span);
+  });
+  const info = document.createElement('span');
+  info.className = 'legend-info';
+  info.textContent = '· Perk deck size: ' + deckSize + ' cards';
+  el.appendChild(info);
+}
+
+// ---- Perk badge ----
+function perkBadgeHtml(perkId, small) {
+  const name = PERK_NAME_MAP[perkId] || perkId;
+  const cat = PERK_CATEGORIES[perkId] || 'default';
+  const c = CAT_COLORS[cat];
+  const cls = 'perk-badge' + (small ? ' small' : '');
+  return `<span class="${cls}" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">${escHtml(name)}</span>`;
+}
+
+// ---- Generate ----
+document.getElementById('btn-generate').onclick = compute;
+document.addEventListener('keydown', function(e) { if (e.key === 'Enter') compute(); });
+
 function showError(msg) {
-  const el = document.getElementById('error');
-  el.textContent = msg;
-  el.style.display = 'block';
+  document.getElementById('error-msg').textContent = msg;
   document.getElementById('results').style.display = 'none';
 }
-
 function clearError() {
-  document.getElementById('error').style.display = 'none';
+  document.getElementById('error-msg').textContent = '';
 }
 
-function calculate() {
+function compute() {
   clearError();
+  const seedStr = document.getElementById('world-seed').value.trim();
+  if (!seedStr) return showError('World seed is required.');
 
-  const seedStr = document.getElementById('seed').value.trim();
-  const steamIdStr = document.getElementById('steamid').value.trim().toLowerCase();
+  const seedNum = parseInt(seedStr, 10);
+  if (isNaN(seedNum) || seedNum < 0) return showError('World seed must be a non-negative integer.');
 
-  if (!seedStr) return showError('World Seed を入力してください。');
-  if (!steamIdStr) return showError('SteamID64 (16進数) を入力してください。');
+  const visibleMountains = parseInt(document.getElementById('visible-mountains').value, 10);
 
-  const seed = parseInt(seedStr, 10);
-  if (isNaN(seed) || seed < 0 || seed > 4294967295) {
-    return showError('World Seed は 0 〜 4294967295 の整数を入力してください。');
+  const results = [];
+  for (const pl of players) {
+    const sid = pl.steamId.trim();
+    if (!sid) continue;
+    let ewSeed;
+    try {
+      const big = BigInt(sid);
+      if (big <= 0n) throw new Error();
+      ewSeed = getEwSeed(sid);
+    } catch (_) {
+      return showError('Invalid Steam ID for ' + (pl.name || 'a player') + ': "' + sid + '"');
+    }
+    const deck = generatePerkDeck(seedNum, ewSeed.sx, ewSeed.sy);
+    const mountains = getHolyMountainPerks(deck, 12);
+    results.push({ name: pl.name, steamId: sid, hex: ewSeed.hex, sx: ewSeed.sx, sy: ewSeed.sy, deck, mountains });
   }
 
-  if (!/^[0-9a-f]{16}$/i.test(steamIdStr)) {
-    return showError('SteamID64 は16文字の16進数文字列で入力してください。例: 0110000100b7c4ce');
+  if (results.length === 0) return showError('Enter at least one Steam ID.');
+
+  // Shared perks per mountain
+  const sharedPerks = {};
+  if (results.length >= 2) {
+    for (let mi = 0; mi < visibleMountains; mi++) {
+      const counts = {};
+      for (const r of results) {
+        for (const p of (r.mountains[mi] || [])) counts[p] = (counts[p] || 0) + 1;
+      }
+      const shared = Object.keys(counts).filter(p => counts[p] > 1);
+      if (shared.length) sharedPerks[mi] = shared;
+    }
   }
 
-  const deck = buildPerkDeck(seed, steamIdStr, PERK_POOL);
-  const mountains = getPerksPerMountain(deck);
-  const perkMap = Object.fromEntries(PERK_POOL.map(p => [p.id, p]));
-
-  const mountainsEl = document.getElementById('mountains');
-  mountainsEl.innerHTML = '';
-  mountains.forEach((perks, i) => {
-    const div = document.createElement('div');
-    div.className = 'mountain';
-    div.innerHTML = `<div class="mountain-title">${MOUNTAIN_NAMES[i]}</div>
-      <div class="perks">${perks.map(id => {
-        const p = perkMap[id] || { name: id };
-        return `<div class="perk"><div class="perk-name">${p.name}</div><div class="perk-id">${id}</div></div>`;
-      }).join('')}</div>`;
-    mountainsEl.appendChild(div);
-  });
-
-  const deckListEl = document.getElementById('deck-list');
-  deckListEl.innerHTML = deck.map((id, i) => {
-    const p = perkMap[id] || { name: id };
-    return `<div class="deck-entry"><span class="deck-num">${i + 1}.</span><span class="deck-name">${p.name}</span></div>`;
-  }).join('');
-
+  renderLegend(results[0].deck.length);
+  renderGrid(results, visibleMountains, sharedPerks);
+  renderDebug(seedStr, results);
   document.getElementById('results').style.display = 'block';
 }
 
-// Allow Enter key to submit
-document.addEventListener('keydown', e => {
-  if (e.key === 'Enter') calculate();
-});
+function renderGrid(results, vis, sharedPerks) {
+  const grid = document.getElementById('perk-grid');
+  grid.style.gridTemplateColumns = `160px repeat(${vis}, minmax(180px, 1fr))`;
+  grid.innerHTML = '';
+
+  // Header row
+  const hPlayer = div('grid-header-cell player-col', 'Player');
+  grid.appendChild(hPlayer);
+  for (let i = 0; i < vis; i++) {
+    const hm = document.createElement('div');
+    hm.className = 'grid-header-cell';
+    const bdr = i < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+    hm.style.borderRight = bdr;
+    hm.innerHTML = `<span>HM ${i + 1}</span>` +
+      (sharedPerks[i] ? `<span class="shared-badge">★ ${sharedPerks[i].length} shared</span>` : '');
+    grid.appendChild(hm);
+  }
+
+  // Player rows
+  for (const r of results) {
+    const label = document.createElement('div');
+    label.className = 'grid-player-label';
+    label.innerHTML = `<div class="player-label-name">${escHtml(r.name)}</div>` +
+      `<div class="player-label-id">${escHtml(r.steamId.slice(-8))}…</div>`;
+    grid.appendChild(label);
+
+    for (let mi = 0; mi < vis; mi++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-perk-cell';
+      cell.style.borderRight = mi < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+      cell.innerHTML = (r.mountains[mi] || []).map(id => perkBadgeHtml(id, false)).join('');
+      grid.appendChild(cell);
+    }
+  }
+
+  // Shared row (only if any overlap exists)
+  if (results.length >= 2 && Object.keys(sharedPerks).length > 0) {
+    const divider = document.createElement('div');
+    divider.className = 'shared-divider';
+    divider.style.gridColumn = `1 / -1`;
+    divider.textContent = '★ Shared perks (appear for multiple players)';
+    grid.appendChild(divider);
+
+    grid.appendChild(div('grid-shared-label', 'Overlap'));
+    for (let mi = 0; mi < vis; mi++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-shared-cell';
+      cell.style.borderRight = mi < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+      cell.innerHTML = (sharedPerks[mi] || []).map(id => perkBadgeHtml(id, true)).join('');
+      grid.appendChild(cell);
+    }
+  }
+}
+
+function renderDebug(seedStr, results) {
+  const body = document.getElementById('debug-body');
+  body.innerHTML = `World seed: <span>${escHtml(seedStr)}</span>` +
+    results.map(r =>
+      `<div class="player-debug"><span>${escHtml(r.name)}</span> · steam_id=${escHtml(r.steamId)} · hex=${r.hex} · sx=${r.sx} sy=${r.sy} · SetRandomSeed(${1 + r.sx}, ${2 + r.sy})</div>`
+    ).join('') +
+    `<div class="debug-note">Algorithm: EW override_perk_list.lua → perk_get_spawn_order() with Noita LGM PRNG (world_seed × 0x19a065b5 + x) × 0x19a065b5 + y mod 2³¹−1</div>`;
+}
+
+// ---- Utilities ----
+function div(cls, text) {
+  const el = document.createElement('div');
+  el.className = cls;
+  if (text) el.textContent = text;
+  return el;
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Initial render
+renderPlayers();
 </script>
 </body>
 </html>
