@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run tests
+        run: |
+          if [ -f Makefile ] && grep -q "^test:" Makefile; then
+            make test
+          elif [ -f package.json ]; then
+            npm test
+          else
+            echo "::error::テストの実行方法が不明です。Makefile に test ターゲットを追加してください。"
+            exit 1
+          fi
+
+      - name: Label PR for Claude on failure
+        if: failure()
+        run: |
+          gh pr edit "${{ github.event.pull_request.number }}" --add-label "claude"
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "🔴 CI失敗。Claudeが修正を試みます。
+
+          詳細は[ワークフロー実行ログ](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})を確認してください。" \
+            --repo "${{ github.repository }}" || true
+        env:
+          GH_TOKEN: ${{ github.token }}

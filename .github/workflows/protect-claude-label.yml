@@ -1,0 +1,21 @@
+name: Protect claude label
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  remove-unauthorized-claude-label:
+    if: github.event.label.name == 'claude'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove claude label if not owner
+        if: github.event.sender.login != github.repository_owner
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" --remove-label "claude" \
+            --repo "${{ github.repository }}"
+          gh issue comment "${{ github.event.issue.number }}" \
+            --body "⚠️ `claude` ラベルはリポジトリオーナーのみ付与できます。このラベルは自動的に削除されました。" \
+            --repo "${{ github.repository }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
