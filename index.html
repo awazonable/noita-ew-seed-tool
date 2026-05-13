@@ -600,8 +600,21 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Initial render
-renderPlayers();
+// ---- URL parameter pre-fill ----
+function loadFromUrlParams() {
+  const { seed, steamIds } = parseUrlParams(window.location.search);
+  if (seed) {
+    document.getElementById('world-seed').value = seed;
+  }
+  if (steamIds.length > 0) {
+    players = steamIds.map((id, i) => ({ name: 'Player ' + (i + 1), steamId: id }));
+  }
+  renderPlayers();
+  if (seed && steamIds.length > 0) compute();
+}
+
+// Initial render (with URL params applied)
+loadFromUrlParams();
 </script>
 </body>
 </html>

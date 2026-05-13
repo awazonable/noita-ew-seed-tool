@@ -120,11 +120,26 @@ function getPerksPerMountain(deck) {
   return getHolyMountainPerks(deck, 7);
 }
 
+// ---- URL parameter parsing ----
+
+// parseUrlParams: parse ?seed=...&steamid=id1,id2,... into {seed, steamIds}
+// steamid is a comma-separated list; returns empty string / empty array when absent
+function parseUrlParams(search) {
+  var params = new URLSearchParams(search);
+  var seed = params.get('seed') || '';
+  var steamidParam = params.get('steamid') || '';
+  var steamIds = steamidParam
+    ? steamidParam.split(',').map(function(s) { return s.trim(); }).filter(Boolean)
+    : [];
+  return { seed: seed, steamIds: steamIds };
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     setWorldSeed, SetRandomSeedHelper, SetRandomSeed, Next,
     computeOffsets, getEwSeed,
     generatePerkDeck, getHolyMountainPerks,
     buildPerkDeck, getPerksPerMountain,
+    parseUrlParams,
   };
 }

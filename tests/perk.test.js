@@ -3,7 +3,7 @@ const assert = require('assert').strict;
 const {
   buildPerkDeck, getPerksPerMountain, computeOffsets,
   setWorldSeed, SetRandomSeed, Next,
-  getEwSeed, generatePerkDeck,
+  getEwSeed, generatePerkDeck, parseUrlParams,
 } = require('../perk-calculator.js');
 const { PERK_POOL } = require('../perk-data.js');
 
@@ -139,6 +139,53 @@ const { PERK_POOL } = require('../perk-data.js');
   assert.equal(deck[1], 'LOW_RECOIL',         'Known second perk for seed=123456789');
   assert.equal(deck[2], 'HEARTS_MORE_EXTRA_HP','Known third perk for seed=123456789');
   console.log('PASS: regression test (seed=123456789)');
+}
+
+// --- parseUrlParams ---
+{
+  // Single steamId
+  const r = parseUrlParams('?seed=786433000&steamid=76561198208812345');
+  assert.equal(r.seed, '786433000', 'seed extracted');
+  assert.deepEqual(r.steamIds, ['76561198208812345'], 'single steamId extracted');
+  console.log('PASS: parseUrlParams single steamId');
+}
+
+{
+  // Multiple steamIds (comma-separated)
+  const r = parseUrlParams('?seed=3916679801269120000&steamid=76561198208812345,76561198208812346');
+  assert.equal(r.seed, '3916679801269120000', 'large seed extracted');
+  assert.deepEqual(r.steamIds, ['76561198208812345', '76561198208812346'], 'multiple steamIds extracted');
+  console.log('PASS: parseUrlParams multiple steamIds');
+}
+
+{
+  // Trims whitespace in steamId list
+  const r = parseUrlParams('?steamid= 111 , 222 , 333 ');
+  assert.deepEqual(r.steamIds, ['111', '222', '333'], 'steamIds trimmed');
+  console.log('PASS: parseUrlParams trims whitespace');
+}
+
+{
+  // Only seed, no steamid
+  const r = parseUrlParams('?seed=999');
+  assert.equal(r.seed, '999');
+  assert.deepEqual(r.steamIds, [], 'no steamIds when param absent');
+  console.log('PASS: parseUrlParams seed only');
+}
+
+{
+  // Empty query string
+  const r = parseUrlParams('');
+  assert.equal(r.seed, '', 'empty seed');
+  assert.deepEqual(r.steamIds, [], 'empty steamIds');
+  console.log('PASS: parseUrlParams empty');
+}
+
+{
+  // Filters empty segments (trailing comma)
+  const r = parseUrlParams('?steamid=111,,222,');
+  assert.deepEqual(r.steamIds, ['111', '222'], 'empty segments filtered');
+  console.log('PASS: parseUrlParams filters empty segments');
 }
 
 console.log('\nAll tests passed!');
