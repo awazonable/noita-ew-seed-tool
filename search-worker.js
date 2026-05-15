@@ -31,7 +31,7 @@ function processChunk() {
     var decks = _state.ewSeeds.map(function(ew) {
       return generatePerkDeck(seed >>> 0, ew.sx, ew.sy);
     });
-    if (checkAllConditionsAllPlayers(decks, _state.conditions)) {
+    if (checkAllConditionsWithPlayerMode(decks, _state.conditions)) {
       _state.hitCount++;
       self.postMessage({ type: 'hit', seed: seed });
     }

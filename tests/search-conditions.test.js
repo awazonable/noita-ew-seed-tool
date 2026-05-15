@@ -1,11 +1,13 @@
 'use strict';
 const assert = require('assert').strict;
-const { COND_EXACTLY, COND_WITHIN, validateConditions, toWorkerConditions } = require('../search-conditions.js');
+const { COND_EXACTLY, COND_WITHIN, COND_PLAYERS_ALL, COND_PLAYERS_ANY, validateConditions, toWorkerConditions } = require('../search-conditions.js');
 
 // --- Constants ---
 {
-  assert.equal(COND_EXACTLY, 'exactly', 'COND_EXACTLY value');
-  assert.equal(COND_WITHIN,  'within',  'COND_WITHIN value');
+  assert.equal(COND_EXACTLY,     'exactly', 'COND_EXACTLY value');
+  assert.equal(COND_WITHIN,      'within',  'COND_WITHIN value');
+  assert.equal(COND_PLAYERS_ALL, 'all',     'COND_PLAYERS_ALL value');
+  assert.equal(COND_PLAYERS_ANY, 'any',     'COND_PLAYERS_ANY value');
   console.log('PASS: constants');
 }
 
@@ -142,15 +144,29 @@ const { COND_EXACTLY, COND_WITHIN, validateConditions, toWorkerConditions } = re
   ];
   const out = toWorkerConditions(input);
   assert.equal(out.length, 3, 'output length matches input');
-  assert.deepEqual(out[0], { perk: 'INVISIBILITY',    mountain: 1,     mode: 'exact'  }, 'exactly → exact');
-  assert.deepEqual(out[1], { perk: 'EXTRA_HP',        mountain: 3,     mode: 'within' }, 'within → within');
-  assert.deepEqual(out[2], { perk: 'STAINLESS_ARMOUR', mountain: 'any', mode: 'within' }, 'any mountain preserved');
+  assert.deepEqual(out[0], { perk: 'INVISIBILITY',    mountain: 1,     mode: 'exact',  players: 'any' }, 'exactly → exact, players defaults to any');
+  assert.deepEqual(out[1], { perk: 'EXTRA_HP',        mountain: 3,     mode: 'within', players: 'any' }, 'within → within, players defaults to any');
+  assert.deepEqual(out[2], { perk: 'STAINLESS_ARMOUR', mountain: 'any', mode: 'within', players: 'any' }, 'any mountain preserved, players defaults to any');
   console.log('PASS: toWorkerConditions basic conversion');
 }
 
 {
   assert.deepEqual(toWorkerConditions([]), [], 'empty array → empty');
   console.log('PASS: toWorkerConditions empty');
+}
+
+// --- toWorkerConditions: players field ---
+{
+  const input = [
+    { perkId: 'INVISIBILITY', mountain: 1, type: 'exactly', players: 'all' },
+    { perkId: 'EXTRA_HP',     mountain: 2, type: 'within',  players: 'any' },
+    { perkId: 'TELEPORTITIS', mountain: 3, type: 'exactly' }, // players omitted → defaults to 'any'
+  ];
+  const out = toWorkerConditions(input);
+  assert.equal(out[0].players, 'all',  'players: all preserved');
+  assert.equal(out[1].players, 'any',  'players: any preserved');
+  assert.equal(out[2].players, 'any',  'players omitted → defaults to any');
+  console.log('PASS: toWorkerConditions players field');
 }
 
 console.log('\nAll search-conditions tests passed!');

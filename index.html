@@ -363,6 +363,7 @@ body {
 .condition-perk-select { flex: 1; max-width: 280px; }
 .condition-mt-select { width: 130px; flex-shrink: 0; }
 .condition-type-select { width: 100px; flex-shrink: 0; }
+.condition-players-select { width: 110px; flex-shrink: 0; }
 
 .search-action-row {
   display: flex;
@@ -940,6 +941,16 @@ function makeConditionRow() {
     typeSel.appendChild(o);
   });
 
+  // Player match selector: any / all
+  const playersSel = document.createElement('select');
+  playersSel.className = 'condition-players-select';
+  [['any', 'Any Player'], ['all', 'All Players']].forEach(function([val, label]) {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = label;
+    playersSel.appendChild(o);
+  });
+
   // Remove button
   const removeBtn = document.createElement('button');
   removeBtn.className = 'btn-remove';
@@ -952,10 +963,12 @@ function makeConditionRow() {
   perkSel.addEventListener('change', updateSearchBtn);
   mtSel.addEventListener('change', updateSearchBtn);
   typeSel.addEventListener('change', updateSearchBtn);
+  playersSel.addEventListener('change', updateSearchBtn);
 
   row.appendChild(perkSel);
   row.appendChild(mtSel);
   row.appendChild(typeSel);
+  row.appendChild(playersSel);
   row.appendChild(removeBtn);
   return row;
 }
@@ -965,14 +978,16 @@ function collectConditions() {
   const rows = document.querySelectorAll('#conditions-list .condition-row');
   const conditions = [];
   rows.forEach(function(row) {
-    const perkSel = row.querySelector('.condition-perk-select');
-    const mtSel   = row.querySelector('.condition-mt-select');
-    const typeSel = row.querySelector('.condition-type-select');
-    const mtVal   = mtSel ? mtSel.value : 'any';
+    const perkSel    = row.querySelector('.condition-perk-select');
+    const mtSel      = row.querySelector('.condition-mt-select');
+    const typeSel    = row.querySelector('.condition-type-select');
+    const playersSel = row.querySelector('.condition-players-select');
+    const mtVal      = mtSel ? mtSel.value : 'any';
     conditions.push({
       perkId:   perkSel ? perkSel.value : '',
       mountain: mtVal === 'any' ? 'any' : parseInt(mtVal, 10),
       type:     typeSel ? typeSel.value : COND_WITHIN,
+      players:  playersSel ? playersSel.value : COND_PLAYERS_ANY,
     });
   });
   return conditions;

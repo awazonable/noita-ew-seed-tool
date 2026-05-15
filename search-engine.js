@@ -72,10 +72,28 @@ function checkAllConditionsAllPlayers(decks, conditions) {
   return decks.length > 0;
 }
 
+// checkAllConditionsWithPlayerMode: each condition carries its own players mode
+// condition.players === 'all': every player must satisfy this condition
+// condition.players === 'any' (default): at least one player must satisfy it
+function checkAllConditionsWithPlayerMode(decks, conditions) {
+  for (var i = 0; i < conditions.length; i++) {
+    var cond = conditions[i];
+    if (cond.players === 'all') {
+      if (decks.length === 0) return false;
+      for (var j = 0; j < decks.length; j++) {
+        if (!checkCondition(decks[j], cond)) return false;
+      }
+    } else {
+      if (!checkConditionMultiPlayer(decks, cond)) return false;
+    }
+  }
+  return true;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     checkCondition, checkAllConditions,
     checkConditionMultiPlayer, checkAllConditionsMultiPlayer,
-    checkAllConditionsAllPlayers,
+    checkAllConditionsAllPlayers, checkAllConditionsWithPlayerMode,
   };
 }
