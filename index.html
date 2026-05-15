@@ -984,7 +984,7 @@ function makeConditionRow() {
   // Player match selector: any / all
   const playersSel = document.createElement('select');
   playersSel.className = 'condition-players-select';
-  [['any', 'Any Player'], ['all', 'All Players']].forEach(function([val, label]) {
+  [['all', 'All Players'], ['any', 'Any Player']].forEach(function([val, label]) {
     const o = document.createElement('option');
     o.value = val;
     o.textContent = label;
