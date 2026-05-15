@@ -387,6 +387,25 @@ body {
   gap: 14px;
   margin-bottom: 20px;
 }
+.search-from-label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+.search-from-input {
+  width: 130px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: #f1f5f9;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.search-from-input:focus { border-color: rgba(99,102,241,0.6); }
 .btn-search {
   background: rgba(99,102,241,0.2);
   border: 1px solid rgba(99,102,241,0.6);
@@ -572,6 +591,8 @@ body {
 
   <div class="search-action-row">
     <button class="btn-search" id="btn-search" disabled>SEARCH</button>
+    <span class="search-from-label">From seed:</span>
+    <input class="search-from-input" id="search-from-seed" type="number" min="0" max="4294967295" step="1" value="0" placeholder="0" autocomplete="off">
     <span class="search-warning" id="search-warning"></span>
   </div>
 
@@ -1197,6 +1218,16 @@ function startSearch() {
   var validation = validateConditions(rawConditions);
   if (!validation.valid) return;
 
+  // Parse and validate starting seed
+  var fromSeedStr = document.getElementById('search-from-seed').value.trim();
+  var fromSeed = fromSeedStr === '' ? 0 : parseInt(fromSeedStr, 10);
+  var warnEl = document.getElementById('search-warning');
+  if (isNaN(fromSeed) || fromSeed < 0 || fromSeed > 4294967295 || !Number.isInteger(fromSeed)) {
+    warnEl.textContent = '⚠ From seed must be an integer between 0 and 4294967295.';
+    warnEl.style.display = 'inline';
+    return;
+  }
+
   // Reset results
   _hitCount = 0;
   document.getElementById('hit-count').textContent = '0';
@@ -1214,7 +1245,7 @@ function startSearch() {
   // Terminate any existing worker
   if (_worker) { _worker.terminate(); _worker = null; }
 
-  _searchStartSeed = 0;
+  _searchStartSeed = fromSeed;
   _lastTotal = 0;
   _lastProgress = 0;
   _startTime = Date.now();
@@ -1233,7 +1264,7 @@ function startSearch() {
   _worker.postMessage({
     type:       'start',
     steamIds:   validPlayers.map(function(p) { return p.steamId.trim(); }),
-    seedStart:  0,
+    seedStart:  fromSeed,
     seedEnd:    4294967295,
     conditions: workerConditions,
   });
