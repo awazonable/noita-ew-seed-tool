@@ -510,21 +510,11 @@ body {
 <div id="pane-viewer" class="tab-pane active">
 <div class="main">
   <div class="config">
-    <!-- Left: seed + mountains -->
+    <!-- Left: seed -->
     <div class="config-left">
       <div class="field">
         <label>World Seed</label>
         <input type="text" id="world-seed" placeholder="e.g. 1234567890" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="field">
-        <label>Holy Mountains shown</label>
-        <select id="visible-mountains">
-          <option value="4">4</option>
-          <option value="6">6</option>
-          <option value="8" selected>8</option>
-          <option value="10">10</option>
-          <option value="12">12</option>
-        </select>
       </div>
     </div>
 
@@ -768,7 +758,7 @@ function compute() {
   const seedNum = parseInt(seedStr, 10);
   if (isNaN(seedNum) || seedNum < 0) return showError('World seed must be a non-negative integer.');
 
-  const visibleMountains = parseInt(document.getElementById('visible-mountains').value, 10);
+  const visibleMountains = 7;
 
   const results = [];
   for (const pl of players) {
@@ -783,7 +773,7 @@ function compute() {
       return showError('Invalid Steam ID for ' + (pl.name || 'a player') + ': "' + sid + '"');
     }
     const deck = generatePerkDeck(seedNum, ewSeed.sx, ewSeed.sy);
-    const mountains = getHolyMountainPerks(deck, 12);
+    const mountains = getHolyMountainPerks(deck, 7);
     results.push({ name: pl.name, steamId: sid, hex: ewSeed.hex, sx: ewSeed.sx, sy: ewSeed.sy, deck, mountains });
   }
 

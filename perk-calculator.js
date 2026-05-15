@@ -108,7 +108,7 @@ function generatePerkDeck(worldSeed, sx, sy) {
 
 // getHolyMountainPerks: returns 3 perks per Holy Mountain for numMountains mountains
 function getHolyMountainPerks(deck, numMountains) {
-  if (numMountains === undefined) numMountains = 12;
+  if (numMountains === undefined) numMountains = 7;
   var mountains = [];
   for (var i = 0; i < numMountains; i++) {
     mountains.push(deck.slice(i * 3, i * 3 + 3));
