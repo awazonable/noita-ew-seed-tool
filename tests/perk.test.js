@@ -451,5 +451,50 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     console.log('PASS: decodeResults handles invalid input');
   }
 
+  // --- Multi-worker interleave correctness ---
+  {
+    // Verify interleaved workers partition the seed space exactly (no overlap, full coverage)
+    for (const N of [1, 2, 4, 8]) {
+      const RANGE = 100;
+      const seen = new Set();
+      for (let wi = 0; wi < N; wi++) {
+        for (let seed = wi; seed < RANGE; seed += N) {
+          assert(!seen.has(seed), `duplicate seed ${seed} for N=${N}`);
+          seen.add(seed);
+        }
+      }
+      assert.equal(seen.size, RANGE, `N=${N}: all ${RANGE} seeds covered`);
+    }
+    console.log('PASS: interleaved workers partition seed space without overlap');
+  }
+
+  {
+    const { checkAllConditionsWithPlayerMode } = require('../search-engine.js');
+    const { sx, sy } = computeOffsets('0110000100b7c4ce');
+    const conditions = [{ perk: 'INVISIBILITY', mountain: 1, mode: 'exact', players: 'any' }];
+    const RANGE_END = 999;
+
+    // Single-worker scan
+    const hits1 = [];
+    for (let seed = 0; seed <= RANGE_END; seed++) {
+      const deck = generatePerkDeck(seed, sx, sy);
+      if (checkAllConditionsWithPlayerMode([deck], conditions)) hits1.push(seed);
+    }
+
+    // Simulate 4-worker interleaved scan
+    const hits4 = [];
+    const N = 4;
+    for (let wi = 0; wi < N; wi++) {
+      for (let seed = wi; seed <= RANGE_END; seed += N) {
+        const deck = generatePerkDeck(seed, sx, sy);
+        if (checkAllConditionsWithPlayerMode([deck], conditions)) hits4.push(seed);
+      }
+    }
+    hits4.sort((a, b) => a - b);
+
+    assert.deepEqual(hits4, hits1, '4-worker interleave finds same hits as single-worker');
+    console.log('PASS: multi-worker interleave produces same results as single-worker scan');
+  }
+
   console.log('\nAll tests passed!');
 })().catch(err => { console.error(err); process.exit(1); });

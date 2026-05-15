@@ -2,6 +2,7 @@
 // Loads WASM-based perk calculator and iterates world seeds in chunks.
 // Accepts steamIds: string[] (or legacy steamId: string) and checks conditions
 // across all players' decks — a condition matches if any player satisfies it.
+// Supports multi-worker interleaved distribution via workerIndex / numWorkers.
 importScripts('perk-data.js', 'search-engine.js', 'perk-calculator.js');
 
 var CHUNK_SIZE = 5000;
@@ -26,9 +27,12 @@ function processChunk() {
   if (!_state || _state.stopped) return;
   if (_state.paused) return; // resume will call scheduleChunk
 
-  var chunkEnd = Math.min(_state.currentSeed + CHUNK_SIZE - 1, _state.seedEnd);
+  var step = _state.numWorkers;
+  var processed = 0;
+  var seed = _state.currentSeed;
 
-  for (var seed = _state.currentSeed; seed <= chunkEnd; seed++) {
+  while (seed <= _state.seedEnd && processed < CHUNK_SIZE) {
+    processed++;
     var decks = _state.ewSeeds.map(function(ew) {
       return generatePerkDeck(seed >>> 0, ew.sx, ew.sy);
     });
@@ -36,26 +40,28 @@ function processChunk() {
       _state.hitCount++;
       self.postMessage({ type: 'hit', seed: seed });
       if (_state.hitCount >= HIT_LIMIT) {
-        var totalSoFar = seed + 1 - _state.seedStart;
-        self.postMessage({ type: 'done', total: totalSoFar, hits: _state.hitCount, hitLimitReached: true });
+        _state.processedCount += processed;
+        self.postMessage({ type: 'done', total: _state.processedCount, hits: _state.hitCount, hitLimitReached: true });
         _state = null;
         return;
       }
     }
+    seed += step;
   }
 
-  var nextSeed = chunkEnd + 1;
-  var total = _state.seedEnd - _state.seedStart + 1;
-  var progress = nextSeed - _state.seedStart;
+  _state.processedCount += processed;
 
-  if (nextSeed > _state.seedEnd) {
+  var total = _state.totalSeeds;
+  var progress = _state.processedCount;
+
+  if (seed > _state.seedEnd) {
     self.postMessage({ type: 'progress', current: total, total: total });
-    self.postMessage({ type: 'done', total: total, hits: _state.hitCount });
+    self.postMessage({ type: 'done', total: _state.processedCount, hits: _state.hitCount });
     _state = null;
     return;
   }
 
-  _state.currentSeed = nextSeed;
+  _state.currentSeed = seed;
 
   if (progress % PROGRESS_EVERY < CHUNK_SIZE) {
     self.postMessage({ type: 'progress', current: progress, total: total });
@@ -72,15 +78,25 @@ self.onmessage = function(e) {
       _initPromise.then(function() {
         // Accept steamIds (array) or legacy steamId (string)
         var ids = msg.steamIds || (msg.steamId ? [msg.steamId] : []);
+        var workerIndex = msg.workerIndex || 0;
+        var numWorkers  = msg.numWorkers  || 1;
+        var initialSeed = msg.seedStart + workerIndex;
+        // Number of seeds this worker will process (interleaved)
+        var totalSeeds = initialSeed <= msg.seedEnd
+          ? Math.floor((msg.seedEnd - initialSeed) / numWorkers) + 1
+          : 0;
         _state = {
-          ewSeeds:     ids.map(function(sid) { return getEwSeed(sid); }),
-          currentSeed: msg.seedStart,
-          seedStart:   msg.seedStart,
-          seedEnd:     msg.seedEnd,
-          conditions:  msg.conditions,
-          hitCount:    0,
-          paused:      false,
-          stopped:     false,
+          ewSeeds:        ids.map(function(sid) { return getEwSeed(sid); }),
+          currentSeed:    initialSeed,
+          seedStart:      msg.seedStart,
+          seedEnd:        msg.seedEnd,
+          numWorkers:     numWorkers,
+          totalSeeds:     totalSeeds,
+          processedCount: 0,
+          conditions:     msg.conditions,
+          hitCount:       0,
+          paused:         false,
+          stopped:        false,
         };
         scheduleChunk();
       });
@@ -100,8 +116,7 @@ self.onmessage = function(e) {
     case 'stop':
       if (_state) {
         _state.stopped = true;
-        var progress = _state.currentSeed - _state.seedStart;
-        self.postMessage({ type: 'done', total: progress, hits: _state.hitCount });
+        self.postMessage({ type: 'done', total: _state.processedCount, hits: _state.hitCount });
         _state = null;
       }
       break;

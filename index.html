@@ -406,6 +406,20 @@ body {
   outline: none;
 }
 .search-from-input:focus { border-color: rgba(99,102,241,0.6); }
+.search-threads-select {
+  width: 72px;
+  background: #1e2433;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: #f1f5f9;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+.search-threads-select:focus { border-color: rgba(99,102,241,0.6); }
+.search-threads-hint { font-size: 11px; color: #475569; }
 .btn-search {
   background: rgba(99,102,241,0.2);
   border: 1px solid rgba(99,102,241,0.6);
@@ -628,6 +642,15 @@ body {
     <button class="btn-search" id="btn-search" disabled>SEARCH</button>
     <span class="search-from-label">From seed:</span>
     <input class="search-from-input" id="search-from-seed" type="number" min="0" max="4294967295" step="1" value="0" placeholder="0" autocomplete="off">
+    <span class="search-from-label">Threads:</span>
+    <select class="search-threads-select" id="search-threads">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+      <option value="8">8</option>
+      <option value="16">16</option>
+    </select>
+    <span class="search-threads-hint" id="search-threads-hint"></span>
     <span class="search-warning" id="search-warning"></span>
   </div>
 
@@ -1119,11 +1142,15 @@ document.getElementById('btn-add-condition').addEventListener('click', function(
 });
 
 // ---- Seed Search: worker state ----
-var _worker = null;
-var _searchState = 'idle'; // 'idle' | 'searching' | 'paused' | 'done'
+var _workers = [];            // active Worker instances (one per thread)
+var _numWorkers = 1;          // number of workers for the current/last search
+var _doneWorkers = 0;         // how many workers have sent 'done'
+var _hitLimitStopping = false;// true once hit limit was reached by any worker
+var _workerProgress = [];     // per-worker {current, total} for progress aggregation
+var _searchState = 'idle';    // 'idle' | 'searching' | 'paused' | 'done'
 var _hitCount = 0;
 var _hitSeeds = [];           // all hit seeds accumulated during current/last search
-var _searchActualEndSeed = 0; // last seed checked when search ended
+var _searchActualEndSeed = 0; // approximate last seed searched when done
 var _startTime = 0;
 var _elapsedTimer = null;
 var _lastTotal = 0;
@@ -1144,6 +1171,7 @@ function setSearchState(state) {
       progressArea.style.display = 'none';
       ctrlRow.style.display = 'none';
       addCond.disabled = false;
+      document.getElementById('search-threads').disabled = false;
       document.querySelectorAll('.condition-row select, .condition-row .btn-remove')
         .forEach(function(el) { el.disabled = false; });
       if (state === 'done') {
@@ -1159,6 +1187,7 @@ function setSearchState(state) {
       ctrlRow.style.display = 'flex';
       btnPR.textContent = 'Pause';
       addCond.disabled = true;
+      document.getElementById('search-threads').disabled = true;
       document.querySelectorAll('.condition-row select, .condition-row .btn-remove')
         .forEach(function(el) { el.disabled = true; });
       break;
@@ -1236,28 +1265,63 @@ function openSeedInViewer(seed) {
   if (!document.getElementById('btn-generate').disabled) compute();
 }
 
-function handleWorkerMessage(e) {
-  var msg = e.data;
-  switch (msg.type) {
-    case 'progress':
-      updateProgress(msg.current, msg.total);
-      break;
-    case 'hit':
-      addHitSeed(msg.seed);
-      break;
-    case 'done':
-      _searchActualEndSeed = _searchStartSeed + (msg.total > 0 ? msg.total - 1 : 0);
-      setSearchState('done');
-      if (msg.hitLimitReached) {
-        document.getElementById('results-status-text').textContent = '(hit limit reached)';
-      }
-      showSearchRange(_searchStartSeed, _searchActualEndSeed);
-      if (_hitSeeds.length > 0) {
-        document.getElementById('btn-copy-results').style.display = 'inline-block';
-      }
-      if (_worker) { _worker.terminate(); _worker = null; }
-      break;
+function updateAggregatedProgress() {
+  var current = 0, total = 0;
+  for (var i = 0; i < _workerProgress.length; i++) {
+    current += _workerProgress[i].current;
+    total   += _workerProgress[i].total;
   }
+  if (total > 0) updateProgress(current, total);
+}
+
+function makeWorkerMessageHandler(workerIndex) {
+  return function(e) {
+    var msg = e.data;
+    switch (msg.type) {
+      case 'progress':
+        _workerProgress[workerIndex].current = msg.current;
+        _workerProgress[workerIndex].total   = msg.total;
+        updateAggregatedProgress();
+        break;
+      case 'hit':
+        addHitSeed(msg.seed);
+        break;
+      case 'done':
+        _workerProgress[workerIndex].current = msg.total;
+        _workerProgress[workerIndex].total   = msg.total;
+        _doneWorkers++;
+
+        if (msg.hitLimitReached && !_hitLimitStopping) {
+          _hitLimitStopping = true;
+          // Stop all other still-running workers
+          _workers.forEach(function(w, i) {
+            if (w && i !== workerIndex) w.postMessage({ type: 'stop' });
+          });
+        }
+
+        if (_doneWorkers >= _numWorkers) {
+          // All workers finished — compute aggregate end seed and finalize
+          var totalProcessed = 0;
+          for (var i = 0; i < _workerProgress.length; i++) {
+            totalProcessed += _workerProgress[i].total;
+          }
+          _searchActualEndSeed = totalProcessed > 0
+            ? _searchStartSeed + totalProcessed - 1
+            : _searchStartSeed;
+          setSearchState('done');
+          if (_hitLimitStopping) {
+            document.getElementById('results-status-text').textContent = '(hit limit reached)';
+          }
+          showSearchRange(_searchStartSeed, _searchActualEndSeed);
+          if (_hitSeeds.length > 0) {
+            document.getElementById('btn-copy-results').style.display = 'inline-block';
+          }
+          _workers.forEach(function(w) { if (w) w.terminate(); });
+          _workers = [];
+        }
+        break;
+    }
+  };
 }
 
 function startSearch() {
@@ -1287,6 +1351,8 @@ function startSearch() {
     return;
   }
 
+  var numThreads = Math.max(1, parseInt(document.getElementById('search-threads').value, 10) || 1);
+
   // Reset results
   _hitCount = 0;
   _hitSeeds = [];
@@ -1305,32 +1371,46 @@ function startSearch() {
   document.getElementById('progress-elapsed').textContent = '0s';
   document.getElementById('progress-seed').textContent = '—';
 
-  // Terminate any existing worker
-  if (_worker) { _worker.terminate(); _worker = null; }
+  // Terminate any existing workers
+  _workers.forEach(function(w) { if (w) w.terminate(); });
+  _workers = [];
+  _numWorkers = numThreads;
+  _doneWorkers = 0;
+  _hitLimitStopping = false;
+  _workerProgress = [];
+  for (var wi = 0; wi < numThreads; wi++) {
+    _workerProgress.push({ current: 0, total: 0 });
+  }
 
   _searchStartSeed = fromSeed;
   _lastTotal = 0;
   _lastProgress = 0;
   _startTime = Date.now();
 
-  _worker = new Worker('search-worker.js');
-  _worker.onmessage = handleWorkerMessage;
-  _worker.onerror = function(err) {
-    document.getElementById('search-warning').textContent = '⚠ Worker error: ' + err.message;
-    document.getElementById('search-warning').style.display = 'inline';
-    setSearchState('done');
-    _worker = null;
-  };
-
   var workerConditions = toWorkerConditions(rawConditions);
+  var steamIds = validPlayers.map(function(p) { return p.steamId.trim(); });
 
-  _worker.postMessage({
-    type:       'start',
-    steamIds:   validPlayers.map(function(p) { return p.steamId.trim(); }),
-    seedStart:  fromSeed,
-    seedEnd:    4294967295,
-    conditions: workerConditions,
-  });
+  for (let wi = 0; wi < numThreads; wi++) {
+    const w = new Worker('search-worker.js');
+    w.onmessage = makeWorkerMessageHandler(wi);
+    w.onerror = function(err) {
+      document.getElementById('search-warning').textContent = '⚠ Worker error: ' + err.message;
+      document.getElementById('search-warning').style.display = 'inline';
+      setSearchState('done');
+      _workers.forEach(function(w) { if (w) w.terminate(); });
+      _workers = [];
+    };
+    _workers.push(w);
+    w.postMessage({
+      type:        'start',
+      steamIds:    steamIds,
+      seedStart:   fromSeed,
+      seedEnd:     4294967295,
+      conditions:  workerConditions,
+      workerIndex: wi,
+      numWorkers:  numThreads,
+    });
+  }
 
   setSearchState('searching');
   startElapsedTimer();
@@ -1339,22 +1419,22 @@ function startSearch() {
 document.getElementById('btn-search').addEventListener('click', startSearch);
 
 document.getElementById('btn-pause-resume').addEventListener('click', function() {
-  if (!_worker) return;
+  if (!_workers.length) return;
   if (_searchState === 'searching') {
-    _worker.postMessage({ type: 'pause' });
+    _workers.forEach(function(w) { w.postMessage({ type: 'pause' }); });
     setSearchState('paused');
     stopElapsedTimer();
   } else if (_searchState === 'paused') {
-    _worker.postMessage({ type: 'resume' });
+    _workers.forEach(function(w) { w.postMessage({ type: 'resume' }); });
     setSearchState('searching');
     startElapsedTimer();
   }
 });
 
 document.getElementById('btn-stop-search').addEventListener('click', function() {
-  if (!_worker) return;
-  _worker.postMessage({ type: 'stop' });
-  // Worker will send 'done'; clean up there
+  if (!_workers.length) return;
+  // Each worker responds with 'done'; makeWorkerMessageHandler finalizes when all finish
+  _workers.forEach(function(w) { w.postMessage({ type: 'stop' }); });
 });
 
 function showSearchRange(start, end) {
@@ -1452,6 +1532,14 @@ function loadSearchResultsFromUrl() {
   document.getElementById('btn-copy-results').style.display = 'inline-block';
   updateSearchPlayerCount();
 }
+
+// Show recommended thread count based on hardware
+(function() {
+  var cores = navigator.hardwareConcurrency;
+  if (cores) {
+    document.getElementById('search-threads-hint').textContent = '(recommended: ' + cores + ')';
+  }
+})();
 
 // Called after all var declarations are executed so _hitSeeds / _hitCount etc. are initialized
 loadSearchResultsFromUrl();
