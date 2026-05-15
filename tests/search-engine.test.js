@@ -298,5 +298,39 @@ const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllC
     console.log('PASS: checkAllConditionsWithPlayerMode');
   }
 
+  // ---- Regression: issue #30 — PROJECTILE_HOMING "All Players" at seed 7 ----
+  // Two players: 76561198208852417 and 76561198900355280
+  // At seed 7: Player1 HM1=[ABILITY_ACTIONS_MATERIALIZED,REMOVE_FOG_OF_WAR,FASTER_WANDS]
+  //            Player2 HM1=[PROJECTILE_HOMING,FOOD_CLOCK,PROTECTION_MELEE]
+  //            Player2 HM2=[PROTECTION_RADIOACTIVITY,UNLIMITED_SPELLS,STAINLESS_ARMOUR]
+  {
+    const ew2 = calc.getEwSeed('76561198900355280'); // sx=79880, sy=565456
+    const deck1_s7 = calc.generatePerkDeck(7, sx, sy);       // Player 1
+    const deck2_s7 = calc.generatePerkDeck(7, ew2.sx, ew2.sy); // Player 2
+    const decks_s7 = [deck1_s7, deck2_s7];
+
+    // Verify deck contents match investigation
+    assert(!checkCondition(deck1_s7, { perk: 'PROJECTILE_HOMING', mountain: 1, mode: 'exact' }),
+      'Player 1 does NOT have PROJECTILE_HOMING in HM1 at seed 7');
+    assert(checkCondition(deck2_s7, { perk: 'PROJECTILE_HOMING', mountain: 1, mode: 'exact' }),
+      'Player 2 has PROJECTILE_HOMING in HM1 at seed 7');
+    assert(checkCondition(deck2_s7, { perk: 'UNLIMITED_SPELLS', mountain: 2, mode: 'exact' }),
+      'Player 2 has UNLIMITED_SPELLS in HM2 at seed 7');
+
+    // 'all players' on PROJECTILE_HOMING → false (Player 1 lacks it)
+    assert(!checkAllConditionsWithPlayerMode(decks_s7, [
+      { perk: 'PROJECTILE_HOMING', mountain: 1, mode: 'exact', players: 'all' },
+      { perk: 'UNLIMITED_SPELLS',  mountain: 2, mode: 'exact', players: 'any' },
+    ]), 'regression #30: seed 7 must NOT hit with PROJECTILE_HOMING all + UNLIMITED_SPELLS any');
+
+    // 'any player' on PROJECTILE_HOMING → true (Player 2 has it)
+    assert(checkAllConditionsWithPlayerMode(decks_s7, [
+      { perk: 'PROJECTILE_HOMING', mountain: 1, mode: 'exact', players: 'any' },
+      { perk: 'UNLIMITED_SPELLS',  mountain: 2, mode: 'exact', players: 'any' },
+    ]), 'seed 7 SHOULD hit with PROJECTILE_HOMING any + UNLIMITED_SPELLS any');
+
+    console.log('PASS: regression #30 — PROJECTILE_HOMING All Players seed 7');
+  }
+
   console.log('\nAll search-engine tests passed!');
 })().catch(err => { console.error(err); process.exit(1); });
