@@ -1,0 +1,136 @@
+'use strict';
+const assert = require('assert').strict;
+const { COND_EXACTLY, COND_WITHIN, validateConditions } = require('../search-conditions.js');
+
+// --- Constants ---
+{
+  assert.equal(COND_EXACTLY, 'exactly', 'COND_EXACTLY value');
+  assert.equal(COND_WITHIN,  'within',  'COND_WITHIN value');
+  console.log('PASS: constants');
+}
+
+// --- validateConditions: empty / null inputs ---
+{
+  const r = validateConditions([]);
+  assert.equal(r.valid, false, 'empty array → invalid');
+  assert.deepEqual(r.warnings, [], 'empty array → no warnings');
+  console.log('PASS: validateConditions empty array');
+}
+
+{
+  const r = validateConditions(null);
+  assert.equal(r.valid, false, 'null → invalid');
+  console.log('PASS: validateConditions null');
+}
+
+{
+  const r = validateConditions('not-an-array');
+  assert.equal(r.valid, false, 'non-array → invalid');
+  console.log('PASS: validateConditions non-array');
+}
+
+// --- validateConditions: single valid condition ---
+{
+  const r = validateConditions([{ perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY }]);
+  assert.equal(r.valid, true, 'single valid condition → valid');
+  assert.deepEqual(r.warnings, [], 'single valid condition → no warnings');
+  console.log('PASS: validateConditions single valid');
+}
+
+// --- validateConditions: condition with empty perkId ---
+{
+  const r = validateConditions([{ perkId: '', mountain: 1, type: COND_EXACTLY }]);
+  assert.equal(r.valid, false, 'empty perkId → invalid');
+  assert.deepEqual(r.warnings, [], 'empty perkId → no duplicate warning');
+  console.log('PASS: validateConditions empty perkId');
+}
+
+{
+  // One valid, one empty
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: '', mountain: 2, type: COND_WITHIN },
+  ]);
+  assert.equal(r.valid, false, 'any empty perkId → invalid');
+  console.log('PASS: validateConditions one empty perkId');
+}
+
+// --- validateConditions: duplicate detection ---
+{
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_WITHIN },
+  ]);
+  assert.equal(r.valid, true, 'duplicate conditions are still valid (just warned)');
+  assert.equal(r.warnings.length, 1, 'one duplicate warning');
+  assert(/INVISIBILITY/.test(r.warnings[0]), 'warning mentions perkId');
+  console.log('PASS: validateConditions duplicate same perk+mountain');
+}
+
+{
+  // Same perk, different mountain → no duplicate
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: 'INVISIBILITY', mountain: 2, type: COND_EXACTLY },
+  ]);
+  assert.equal(r.valid, true, 'same perk different mountain → valid');
+  assert.deepEqual(r.warnings, [], 'different mountain → no warning');
+  console.log('PASS: validateConditions same perk different mountain');
+}
+
+{
+  // Different perk, same mountain → no duplicate
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: 'TELEPORTITIS', mountain: 1, type: COND_EXACTLY },
+  ]);
+  assert.equal(r.valid, true, 'different perks same mountain → valid');
+  assert.deepEqual(r.warnings, [], 'different perks → no warning');
+  console.log('PASS: validateConditions different perk same mountain');
+}
+
+{
+  // Multiple duplicates
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_WITHIN },
+    { perkId: 'TELEPORTITIS', mountain: 3, type: COND_WITHIN },
+    { perkId: 'TELEPORTITIS', mountain: 3, type: COND_WITHIN },
+  ]);
+  assert.equal(r.warnings.length, 2, 'two duplicate pairs → two warnings');
+  console.log('PASS: validateConditions multiple duplicates');
+}
+
+// --- validateConditions: 'any' mountain ---
+{
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 'any', type: COND_WITHIN },
+  ]);
+  assert.equal(r.valid, true, 'any mountain → valid');
+  assert.deepEqual(r.warnings, [], 'any mountain → no warnings');
+  console.log('PASS: validateConditions any mountain');
+}
+
+{
+  // Same perk, both 'any' → duplicate
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 'any', type: COND_EXACTLY },
+    { perkId: 'INVISIBILITY', mountain: 'any', type: COND_WITHIN },
+  ]);
+  assert.equal(r.warnings.length, 1, 'same perk twice on any → duplicate warning');
+  console.log('PASS: validateConditions duplicate on any mountain');
+}
+
+// --- validateConditions: multiple valid conditions (AND) ---
+{
+  const r = validateConditions([
+    { perkId: 'INVISIBILITY', mountain: 1, type: COND_EXACTLY },
+    { perkId: 'TELEPORTITIS', mountain: 2, type: COND_WITHIN },
+    { perkId: 'STAINLESS_ARMOUR', mountain: 'any', type: COND_WITHIN },
+  ]);
+  assert.equal(r.valid, true, 'multiple valid conditions → valid');
+  assert.deepEqual(r.warnings, [], 'no duplicates → no warnings');
+  console.log('PASS: validateConditions multiple valid AND conditions');
+}
+
+console.log('\nAll search-conditions tests passed!');
