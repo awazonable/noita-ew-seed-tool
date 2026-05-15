@@ -1,8 +1,7 @@
-// Noita EW perk generation — dual-LCG PRNG (Noita SetRandomSeed / Random Lua API)
-// EW overrides the seed via SetRandomSeed(1+sx, 2+sy) then delegates to vanilla
-// perk_get_spawn_order, which draws without replacement using Next() % pool.length
+// Noita EW perk generation — uses rng.wasm from TwoAbove/noita-tools (MIT)
+// PRNG: Nolla PRNG (Bob Jenkins hash + Park-Miller LCG)
+// Algorithm mirrors noita-tools perk_get_spawn_order with EW per-peer seed override
 
-// Load PERK_POOL from perk-data.js (Node) or global (browser)
 var _PERK_POOL;
 if (typeof module !== 'undefined') {
   _PERK_POOL = require('./perk-data.js').PERK_POOL;
@@ -10,50 +9,35 @@ if (typeof module !== 'undefined') {
   _PERK_POOL = typeof PERK_POOL !== 'undefined' ? PERK_POOL : [];
 }
 
-// ---- Dual-LCG PRNG state ----
+// Quick lookup by id for dedup step
+var _PERK_MAP = {};
+(function() {
+  for (var i = 0; i < _PERK_POOL.length; i++) {
+    _PERK_MAP[_PERK_POOL[i].id] = _PERK_POOL[i];
+  }
+})();
 
-var _world_seed = 0;
-var _rng_seed_x = 0;
-var _rng_seed_y = 0;
+// ---- WASM state ----
 
-var _buf = new ArrayBuffer(8);
-var _view = new DataView(_buf);
+var _wasm = null;
 
-function setWorldSeed(seed) {
-  _world_seed = seed >>> 0;
+async function initWasm() {
+  if (_wasm) return;
+  var wasmBytes;
+  if (typeof require !== 'undefined') {
+    var path = require('path');
+    wasmBytes = require('fs').readFileSync(path.join(__dirname, 'rng.wasm'));
+  } else {
+    var response = await fetch('./rng.wasm');
+    wasmBytes = await response.arrayBuffer();
+  }
+  var result = await WebAssembly.instantiate(wasmBytes, {});
+  _wasm = result.instance.exports;
 }
 
-// IEEE 754 double → upper 32 bits (sign + exponent + high mantissa)
-// Little-endian: bytes 4-7 are the upper half of the 64-bit double.
-// Integer-valued floats always have zero lower-32 bits, so we must read the upper half.
-function _floatHigh32(v) {
-  _view.setFloat64(0, v, true);
-  return _view.getUint32(4, true);
-}
-
-function SetRandomSeedHelper(a, b) {
-  var ax = _floatHigh32(a);
-  var bx = _floatHigh32(b);
-  _rng_seed_x = (ax ^ (_world_seed >>> 13)) >>> 0;
-  _rng_seed_y = bx >>> 0;
-}
-
-function SetRandomSeed(x, y) {
-  SetRandomSeedHelper(x, y);
-  var ws = _world_seed;
-  for (var i = 0; i < (ws & 3); i++) Next();
-}
-
-function Next() {
-  _rng_seed_x = (Math.imul(214013, _rng_seed_x) + 2531011) >>> 0;
-  _rng_seed_y = (Math.imul(17405, _rng_seed_y) + 10395331) >>> 0;
-  return ((_rng_seed_x ^ _rng_seed_y) >>> 0) & 0x7FFF;
-}
-
-// ---- Offset extraction ----
+// ---- SteamID parsing ----
 
 // computeOffsets: accepts 16-char hex steamId string
-// Lua: string.sub(id,8,12) → JS substring(7,12), string.sub(id,12) → JS substring(11)
 function computeOffsets(steamId) {
   var sx = parseInt(steamId.substring(7, 12), 16);
   var sy = parseInt(steamId.substring(11), 16);
@@ -71,23 +55,58 @@ function getEwSeed(steamId) {
 
 // ---- Deck generation ----
 
-// generatePerkDeck: main entry point used by the UI
-// Mirrors EW override_perk_list.lua → vanilla perk_get_spawn_order()
+// generatePerkDeck: mirrors EW override_perk_list.lua → vanilla perk_get_spawn_order()
+// Requires initWasm() to have been called first.
 function generatePerkDeck(worldSeed, sx, sy) {
-  setWorldSeed(worldSeed >>> 0);
+  if (!_wasm) throw new Error('Call initWasm() before generatePerkDeck()');
+  var SetWorldSeed = _wasm.SetWorldSeed;
+  var SetRandomSeed = _wasm.SetRandomSeed;
+  var RandomInt = _wasm.RandomInt;
+
+  SetWorldSeed(worldSeed >>> 0);
   SetRandomSeed(1.0 + sx, 2.0 + sy);
 
-  var pool = _PERK_POOL.map(function(p) { return p.id; });
+  // Step 1: Build pool — mirrors perk_get_spawn_order pool construction
+  // For each stackable perk:
+  //   always consume Random(1,2) first; if max_in_perk_pool, override with Random(1,max);
+  //   if stackable_is_rare, force count to 1; then consume Random(1, max) for how_many_times
   var deck = [];
-  while (pool.length > 0) {
-    var idx = Next() % pool.length;
-    deck.push(pool[idx]);
-    pool.splice(idx, 1);
+  for (var i = 0; i < _PERK_POOL.length; i++) {
+    var perk = _PERK_POOL[i];
+    if (!perk.stackable) {
+      deck.push(perk.id);
+    } else {
+      var max_perks = RandomInt(1, 2);
+      if (perk.maxPool) max_perks = RandomInt(1, perk.maxPool);
+      if (perk.rare) max_perks = 1;
+      var how_many = RandomInt(1, max_perks);
+      for (var j = 0; j < how_many; j++) deck.push(perk.id);
+    }
   }
+
+  // Step 2: Fisher-Yates shuffle — mirrors shuffle_table() in noita-tools
+  for (var i = deck.length - 1; i >= 1; i--) {
+    var j = RandomInt(0, i);
+    var tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp;
+  }
+
+  // Step 3: Remove stackable duplicates within min_distance=4 (scan backwards)
+  var MIN_DIST = 4;
+  for (var i = deck.length - 1; i >= 0; i--) {
+    var p = _PERK_MAP[deck[i]];
+    if (!p || !p.stackable) continue;
+    for (var ri = i - MIN_DIST; ri < i; ri++) {
+      if (ri >= 0 && deck[ri] === deck[i]) {
+        deck.splice(i, 1);
+        break;
+      }
+    }
+  }
+
   return deck;
 }
 
-// Return 3 perks per Holy Mountain for numMountains mountains
+// getHolyMountainPerks: returns 3 perks per Holy Mountain for numMountains mountains
 function getHolyMountainPerks(deck, numMountains) {
   if (numMountains === undefined) numMountains = 12;
   var mountains = [];
@@ -99,31 +118,19 @@ function getHolyMountainPerks(deck, numMountains) {
 
 // ---- Backward-compat wrappers (used by tests) ----
 
-// buildPerkDeck: hex steamId, perkPool optional (falls back to _PERK_POOL)
-function buildPerkDeck(worldSeed, steamId, perkPool) {
+// buildPerkDeck: hex steamId string, perkPool param kept for API compat (ignored)
+function buildPerkDeck(worldSeed, steamId) {
   var off = computeOffsets(steamId);
-  setWorldSeed(worldSeed >>> 0);
-  SetRandomSeed(1.0 + off.sx, 2.0 + off.sy);
-
-  var pool = (perkPool || _PERK_POOL).map(function(p) { return p.id; });
-  var deck = [];
-  while (pool.length > 0) {
-    var idx = Next() % pool.length;
-    deck.push(pool[idx]);
-    pool.splice(idx, 1);
-  }
-  return deck;
+  return generatePerkDeck(worldSeed >>> 0, off.sx, off.sy);
 }
 
-// getPerksPerMountain: returns first 7 mountains (original spec)
+// getPerksPerMountain: returns first 7 mountains
 function getPerksPerMountain(deck) {
   return getHolyMountainPerks(deck, 7);
 }
 
 // ---- URL parameter parsing ----
 
-// parseUrlParams: parse ?seed=...&steamid=id1,id2,... into {seed, steamIds}
-// steamid is a comma-separated list; returns empty string / empty array when absent
 function parseUrlParams(search) {
   var params = new URLSearchParams(search);
   var seed = params.get('seed') || '';
@@ -136,7 +143,7 @@ function parseUrlParams(search) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    setWorldSeed, SetRandomSeedHelper, SetRandomSeed, Next,
+    initWasm,
     computeOffsets, getEwSeed,
     generatePerkDeck, getHolyMountainPerks,
     buildPerkDeck, getPerksPerMountain,
