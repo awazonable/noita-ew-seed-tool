@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert').strict;
-const { COND_EXACTLY, COND_WITHIN, validateConditions } = require('../search-conditions.js');
+const { COND_EXACTLY, COND_WITHIN, validateConditions, toWorkerConditions } = require('../search-conditions.js');
 
 // --- Constants ---
 {
@@ -131,6 +131,26 @@ const { COND_EXACTLY, COND_WITHIN, validateConditions } = require('../search-con
   assert.equal(r.valid, true, 'multiple valid conditions → valid');
   assert.deepEqual(r.warnings, [], 'no duplicates → no warnings');
   console.log('PASS: validateConditions multiple valid AND conditions');
+}
+
+// --- toWorkerConditions ---
+{
+  const input = [
+    { perkId: 'INVISIBILITY', mountain: 1, type: 'exactly' },
+    { perkId: 'EXTRA_HP',     mountain: 3, type: 'within'  },
+    { perkId: 'STAINLESS_ARMOUR', mountain: 'any', type: 'within' },
+  ];
+  const out = toWorkerConditions(input);
+  assert.equal(out.length, 3, 'output length matches input');
+  assert.deepEqual(out[0], { perk: 'INVISIBILITY',    mountain: 1,     mode: 'exact'  }, 'exactly → exact');
+  assert.deepEqual(out[1], { perk: 'EXTRA_HP',        mountain: 3,     mode: 'within' }, 'within → within');
+  assert.deepEqual(out[2], { perk: 'STAINLESS_ARMOUR', mountain: 'any', mode: 'within' }, 'any mountain preserved');
+  console.log('PASS: toWorkerConditions basic conversion');
+}
+
+{
+  assert.deepEqual(toWorkerConditions([]), [], 'empty array → empty');
+  console.log('PASS: toWorkerConditions empty');
 }
 
 console.log('\nAll search-conditions tests passed!');

@@ -379,15 +379,90 @@ body {
   color: #f59e0b;
   display: none;
 }
+/* Progress bar */
+#search-progress-area { margin-bottom: 16px; }
+.progress-bar-wrap {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: rgba(99,102,241,0.8);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.4s linear;
+}
+.progress-meta {
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.progress-meta span { color: #64748b; }
+.progress-meta .pm-val { color: #94a3b8; }
+
+/* Search control buttons */
+#search-ctrl-row { display: none; gap: 8px; margin-bottom: 16px; }
+.btn-ctrl {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 3px;
+  color: #94a3b8;
+  padding: 6px 18px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.btn-ctrl:hover { background: rgba(255,255,255,0.13); }
+.btn-ctrl-stop { color: #f87171; border-color: rgba(248,113,113,0.3); }
+.btn-ctrl-stop:hover { background: rgba(248,113,113,0.1); }
+
+/* Results area */
 #search-results-area {
-  padding: 24px;
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 6px;
+  overflow: hidden;
+}
+#results-placeholder {
+  padding: 24px;
   font-size: 12px;
   color: #475569;
   text-align: center;
 }
+.results-meta {
+  display: none;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: #64748b;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+}
+.results-meta .rm-hits { color: #a5b4fc; font-weight: 600; }
+.results-meta .rm-status { color: #475569; margin-left: 8px; }
+#results-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.hit-seed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.hit-seed-row:last-child { border-bottom: none; }
+.hit-seed-row:hover { background: rgba(99,102,241,0.1); }
+.hit-seed-num { font-size: 14px; font-weight: 700; color: #c7d2fe; font-family: inherit; }
+.hit-seed-hint { font-size: 10px; color: #4f5c7a; }
 </style>
 </head>
 <body>
@@ -480,8 +555,33 @@ body {
     <span class="search-warning" id="search-warning"></span>
   </div>
 
+  <!-- Progress bar (shown during search) -->
+  <div id="search-progress-area" style="display:none">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-meta">
+      <span><span class="pm-val" id="progress-pct">0%</span></span>
+      <span>Seed: <span class="pm-val" id="progress-seed">—</span></span>
+      <span><span class="pm-val" id="progress-elapsed">0s</span> elapsed</span>
+      <span id="progress-eta-wrap" style="display:none">ETA: <span class="pm-val" id="progress-eta">—</span></span>
+    </div>
+  </div>
+
+  <!-- Pause/Stop controls (shown during search) -->
+  <div id="search-ctrl-row">
+    <button class="btn-ctrl" id="btn-pause-resume">Pause</button>
+    <button class="btn-ctrl btn-ctrl-stop" id="btn-stop-search">Stop</button>
+  </div>
+
+  <!-- Results -->
   <div id="search-results-area">
-    Add conditions above and start a search to see matching seeds.
+    <div class="results-meta" id="results-meta">
+      <span class="rm-hits" id="hit-count">0</span> hit(s) found
+      <span class="rm-status" id="results-status-text"></span>
+    </div>
+    <div id="results-list"></div>
+    <div id="results-placeholder">Add conditions above and start a search to see matching seeds.</div>
   </div>
 </div>
 </div><!-- #pane-search -->
@@ -875,6 +975,231 @@ function updateSearchBtn() {
 document.getElementById('btn-add-condition').addEventListener('click', function() {
   document.getElementById('conditions-list').appendChild(makeConditionRow());
   updateSearchBtn();
+});
+
+// ---- Seed Search: worker state ----
+var _worker = null;
+var _searchState = 'idle'; // 'idle' | 'searching' | 'paused' | 'done'
+var _hitCount = 0;
+var _startTime = 0;
+var _elapsedTimer = null;
+var _lastTotal = 0;
+var _lastProgress = 0;
+
+function setSearchState(state) {
+  _searchState = state;
+  var btnSearch      = document.getElementById('btn-search');
+  var progressArea   = document.getElementById('search-progress-area');
+  var ctrlRow        = document.getElementById('search-ctrl-row');
+  var btnPR          = document.getElementById('btn-pause-resume');
+  var addCond        = document.getElementById('btn-add-condition');
+
+  switch (state) {
+    case 'idle':
+    case 'done':
+      btnSearch.style.display = 'inline-block';
+      progressArea.style.display = 'none';
+      ctrlRow.style.display = 'none';
+      addCond.disabled = false;
+      document.querySelectorAll('.condition-row select, .condition-row .btn-remove')
+        .forEach(function(el) { el.disabled = false; });
+      if (state === 'done') {
+        document.getElementById('results-status-text').textContent = '(search complete)';
+      }
+      stopElapsedTimer();
+      updateSearchBtn();
+      break;
+
+    case 'searching':
+      btnSearch.style.display = 'none';
+      progressArea.style.display = 'block';
+      ctrlRow.style.display = 'flex';
+      btnPR.textContent = 'Pause';
+      addCond.disabled = true;
+      document.querySelectorAll('.condition-row select, .condition-row .btn-remove')
+        .forEach(function(el) { el.disabled = true; });
+      break;
+
+    case 'paused':
+      btnPR.textContent = 'Resume';
+      break;
+  }
+}
+
+function startElapsedTimer() {
+  stopElapsedTimer();
+  _elapsedTimer = setInterval(function() {
+    var sec = Math.floor((Date.now() - _startTime) / 1000);
+    document.getElementById('progress-elapsed').textContent = sec + 's';
+
+    if (_lastTotal > 0 && _lastProgress > 0 && _searchState === 'searching') {
+      var rate = _lastProgress / ((Date.now() - _startTime) / 1000);
+      var remaining = (_lastTotal - _lastProgress) / rate;
+      var etaEl = document.getElementById('progress-eta');
+      var etaWrap = document.getElementById('progress-eta-wrap');
+      etaEl.textContent = remaining < 60
+        ? Math.ceil(remaining) + 's'
+        : Math.ceil(remaining / 60) + 'm';
+      etaWrap.style.display = 'inline';
+    }
+  }, 1000);
+}
+
+function stopElapsedTimer() {
+  if (_elapsedTimer) { clearInterval(_elapsedTimer); _elapsedTimer = null; }
+}
+
+function updateProgress(current, total) {
+  _lastProgress = current;
+  _lastTotal = total;
+  var pct = total > 0 ? Math.floor(current / total * 100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  // Compute approximate current seed
+  var curSeed = _searchStartSeed + current;
+  document.getElementById('progress-seed').textContent = curSeed.toLocaleString();
+}
+
+var _searchStartSeed = 0;
+
+function addHitSeed(seed) {
+  _hitCount++;
+  document.getElementById('hit-count').textContent = _hitCount;
+  document.getElementById('results-placeholder').style.display = 'none';
+
+  var row = document.createElement('button');
+  row.className = 'hit-seed-row';
+  row.innerHTML =
+    '<span class="hit-seed-num">' + seed.toLocaleString() + '</span>' +
+    '<span class="hit-seed-hint">Click to view in Perk Viewer →</span>';
+  row.addEventListener('click', function() { openSeedInViewer(seed); });
+  document.getElementById('results-list').prepend(row); // newest first
+}
+
+function openSeedInViewer(seed) {
+  // Set seed in viewer
+  document.getElementById('world-seed').value = seed;
+
+  // Sync search SteamID to first player if not already present
+  var searchSid = document.getElementById('search-steamid').value.trim();
+  if (searchSid) {
+    var already = players.some(function(p) { return p.steamId.trim() === searchSid; });
+    if (!already) {
+      players[0].steamId = searchSid;
+      renderPlayers();
+    }
+  }
+
+  // Switch to Perk Viewer tab
+  document.querySelectorAll('.tab-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tab === 'viewer');
+  });
+  document.querySelectorAll('.tab-pane').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'pane-viewer');
+  });
+
+  // Auto-compute if WASM ready
+  if (!document.getElementById('btn-generate').disabled) compute();
+}
+
+function handleWorkerMessage(e) {
+  var msg = e.data;
+  switch (msg.type) {
+    case 'progress':
+      updateProgress(msg.current, msg.total);
+      break;
+    case 'hit':
+      addHitSeed(msg.seed);
+      break;
+    case 'done':
+      setSearchState('done');
+      if (_worker) { _worker.terminate(); _worker = null; }
+      break;
+  }
+}
+
+function startSearch() {
+  var steamId = document.getElementById('search-steamid').value.trim();
+  if (!steamId) {
+    document.getElementById('search-warning').textContent = '⚠ Steam ID is required.';
+    document.getElementById('search-warning').style.display = 'inline';
+    return;
+  }
+  // Validate Steam ID
+  try { if (BigInt(steamId) <= 0n) throw new Error(); } catch(_) {
+    document.getElementById('search-warning').textContent = '⚠ Invalid Steam ID.';
+    document.getElementById('search-warning').style.display = 'inline';
+    return;
+  }
+
+  var rawConditions = collectConditions();
+  var validation = validateConditions(rawConditions);
+  if (!validation.valid) return;
+
+  // Reset results
+  _hitCount = 0;
+  document.getElementById('hit-count').textContent = '0';
+  document.getElementById('results-list').innerHTML = '';
+  document.getElementById('results-placeholder').style.display = 'block';
+  document.getElementById('results-placeholder').textContent = 'Searching…';
+  document.getElementById('results-status-text').textContent = '';
+  document.getElementById('results-meta').style.display = 'block';
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('progress-pct').textContent = '0%';
+  document.getElementById('progress-eta-wrap').style.display = 'none';
+  document.getElementById('progress-elapsed').textContent = '0s';
+  document.getElementById('progress-seed').textContent = '—';
+
+  // Terminate any existing worker
+  if (_worker) { _worker.terminate(); _worker = null; }
+
+  _searchStartSeed = 0;
+  _lastTotal = 0;
+  _lastProgress = 0;
+  _startTime = Date.now();
+
+  _worker = new Worker('search-worker.js');
+  _worker.onmessage = handleWorkerMessage;
+  _worker.onerror = function(err) {
+    document.getElementById('search-warning').textContent = '⚠ Worker error: ' + err.message;
+    document.getElementById('search-warning').style.display = 'inline';
+    setSearchState('done');
+    _worker = null;
+  };
+
+  var workerConditions = toWorkerConditions(rawConditions);
+
+  _worker.postMessage({
+    type:       'start',
+    steamId:    steamId,
+    seedStart:  0,
+    seedEnd:    4294967295,
+    conditions: workerConditions,
+  });
+
+  setSearchState('searching');
+  startElapsedTimer();
+}
+
+document.getElementById('btn-search').addEventListener('click', startSearch);
+
+document.getElementById('btn-pause-resume').addEventListener('click', function() {
+  if (!_worker) return;
+  if (_searchState === 'searching') {
+    _worker.postMessage({ type: 'pause' });
+    setSearchState('paused');
+    stopElapsedTimer();
+  } else if (_searchState === 'paused') {
+    _worker.postMessage({ type: 'resume' });
+    setSearchState('searching');
+    startElapsedTimer();
+  }
+});
+
+document.getElementById('btn-stop-search').addEventListener('click', function() {
+  if (!_worker) return;
+  _worker.postMessage({ type: 'stop' });
+  // Worker will send 'done'; clean up there
 });
 </script>
 </body>
