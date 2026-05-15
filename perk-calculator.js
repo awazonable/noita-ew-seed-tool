@@ -159,6 +159,42 @@ function buildShareUrl(seed, players, baseUrl) {
   return baseUrl + '?' + params.toString();
 }
 
+// ---- Search result encoding ----
+
+var SEARCH_HIT_LIMIT = 100;
+
+var _btoa = typeof btoa === 'function' ? btoa : function(s) { return Buffer.from(s, 'binary').toString('base64'); };
+var _atob = typeof atob === 'function' ? atob : function(s) { return Buffer.from(s, 'base64').toString('binary'); };
+
+// encodeResults: packs start/end/hits into URL-safe base64 (Uint32, little-endian)
+function encodeResults(start, end, hits) {
+  var values = [start >>> 0, end >>> 0].concat(
+    hits.slice(0, SEARCH_HIT_LIMIT).map(function(h) { return h >>> 0; })
+  );
+  var arr = new Uint32Array(values);
+  var bytes = new Uint8Array(arr.buffer);
+  var s = '';
+  for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return _btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+// decodeResults: reverses encodeResults; returns {start, end, hits} or null on error
+function decodeResults(str) {
+  if (!str) return null;
+  try {
+    var bin = _atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    if (bytes.length < 8 || bytes.length % 4 !== 0) return null;
+    var arr = new Uint32Array(bytes.buffer);
+    return {
+      start: arr[0] >>> 0,
+      end:   arr[1] >>> 0,
+      hits:  Array.prototype.slice.call(arr, 2).map(function(v) { return v >>> 0; }),
+    };
+  } catch (_) { return null; }
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     initWasm,
@@ -166,5 +202,6 @@ if (typeof module !== 'undefined') {
     generatePerkDeck, getHolyMountainPerks,
     buildPerkDeck, getPerksPerMountain,
     parseUrlParams, buildShareUrl,
+    SEARCH_HIT_LIMIT, encodeResults, decodeResults,
   };
 }
