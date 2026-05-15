@@ -726,6 +726,10 @@ function perkBadgeHtml(perkId, small) {
 }
 
 // ---- WASM init ----
+// loadFromUrlParams runs first (sync) to populate the DOM; the return value
+// tells us whether auto-compute is desired once WASM is ready.
+const _autoCompute = loadFromUrlParams();
+
 (async function() {
   const btn = document.getElementById('btn-generate');
   try {
@@ -736,6 +740,7 @@ function perkBadgeHtml(perkId, small) {
   }
   btn.disabled = false;
   btn.textContent = 'GENERATE PERK DECKS';
+  if (_autoCompute) compute();
 })();
 
 // ---- Generate ----
@@ -873,6 +878,9 @@ function escHtml(s) {
 }
 
 // ---- URL parameter pre-fill ----
+// loadFromUrlParams: sets DOM values from URL params and returns true when
+// auto-compute should be triggered (seed + at least one steamId present).
+// Does NOT call compute() — WASM may not be ready yet at call time.
 function loadFromUrlParams() {
   const { seed, steamIds, names } = parseUrlParams(window.location.search);
   if (seed) {
@@ -885,11 +893,8 @@ function loadFromUrlParams() {
     }));
   }
   renderPlayers();
-  if (seed && steamIds.length > 0) compute();
+  return !!(seed && steamIds.length > 0);
 }
-
-// Initial render (with URL params applied)
-loadFromUrlParams();
 
 // ---- Share button ----
 document.getElementById('btn-share').addEventListener('click', function() {
