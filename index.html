@@ -347,8 +347,38 @@ body {
   cursor: pointer;
 }
 .condition-row select:focus { border-color: rgba(99,102,241,0.6); }
-.condition-mt-select { width: 160px; }
-.condition-perk-select { flex: 1; max-width: 320px; }
+.condition-perk-select { flex: 1; max-width: 280px; }
+.condition-mt-select { width: 130px; flex-shrink: 0; }
+.condition-type-select { width: 100px; flex-shrink: 0; }
+
+.search-action-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.btn-search {
+  background: rgba(99,102,241,0.2);
+  border: 1px solid rgba(99,102,241,0.6);
+  border-radius: 4px;
+  color: #a5b4fc;
+  padding: 9px 24px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.btn-search:hover:not(:disabled) { background: rgba(99,102,241,0.3); }
+.btn-search:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.search-warning {
+  font-size: 11px;
+  color: #f59e0b;
+  display: none;
+}
 #search-results-area {
   padding: 24px;
   background: rgba(255,255,255,0.02);
@@ -445,6 +475,11 @@ body {
     <div id="conditions-list"></div>
   </div>
 
+  <div class="search-action-row">
+    <button class="btn-search" id="btn-search" disabled>SEARCH</button>
+    <span class="search-warning" id="search-warning"></span>
+  </div>
+
   <div id="search-results-area">
     Add conditions above and start a search to see matching seeds.
   </div>
@@ -452,6 +487,7 @@ body {
 </div><!-- #pane-search -->
 
 <script src="perk-data.js"></script>
+<script src="search-conditions.js"></script>
 <script src="perk-calculator.js"></script>
 <script>
 // ---- Perk category colors (keyed by correct vanilla perk IDs) ----
@@ -744,41 +780,101 @@ function makeConditionRow() {
   const row = document.createElement('div');
   row.className = 'condition-row';
 
-  const mtSel = document.createElement('select');
-  mtSel.className = 'condition-mt-select';
-  for (var m = 1; m <= 12; m++) {
-    var opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = 'Holy Mountain ' + m;
-    mtSel.appendChild(opt);
-  }
-
+  // Perk selector
   const perkSel = document.createElement('select');
   perkSel.className = 'condition-perk-select';
-  var blankOpt = document.createElement('option');
+  const blankOpt = document.createElement('option');
   blankOpt.value = '';
   blankOpt.textContent = '— select perk —';
   perkSel.appendChild(blankOpt);
   PERK_POOL.forEach(function(p) {
-    var o = document.createElement('option');
+    const o = document.createElement('option');
     o.value = p.id;
     o.textContent = p.name;
     perkSel.appendChild(o);
   });
 
+  // Mountain selector: Any + HM 1-7
+  const mtSel = document.createElement('select');
+  mtSel.className = 'condition-mt-select';
+  const anyOpt = document.createElement('option');
+  anyOpt.value = 'any';
+  anyOpt.textContent = 'Any Mountain';
+  mtSel.appendChild(anyOpt);
+  for (let m = 1; m <= 7; m++) {
+    const o = document.createElement('option');
+    o.value = m;
+    o.textContent = 'HM ' + m;
+    mtSel.appendChild(o);
+  }
+
+  // Condition type selector
+  const typeSel = document.createElement('select');
+  typeSel.className = 'condition-type-select';
+  [['exactly', 'Exactly'], ['within', 'By']].forEach(function([val, label]) {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = label;
+    typeSel.appendChild(o);
+  });
+
+  // Remove button
   const removeBtn = document.createElement('button');
   removeBtn.className = 'btn-remove';
   removeBtn.textContent = '×';
-  removeBtn.addEventListener('click', function() { row.remove(); });
+  removeBtn.addEventListener('click', function() {
+    row.remove();
+    updateSearchBtn();
+  });
 
-  row.appendChild(mtSel);
+  perkSel.addEventListener('change', updateSearchBtn);
+  mtSel.addEventListener('change', updateSearchBtn);
+  typeSel.addEventListener('change', updateSearchBtn);
+
   row.appendChild(perkSel);
+  row.appendChild(mtSel);
+  row.appendChild(typeSel);
   row.appendChild(removeBtn);
   return row;
 }
 
+// collectConditions: reads DOM → array of condition objects
+function collectConditions() {
+  const rows = document.querySelectorAll('#conditions-list .condition-row');
+  const conditions = [];
+  rows.forEach(function(row) {
+    const perkSel = row.querySelector('.condition-perk-select');
+    const mtSel   = row.querySelector('.condition-mt-select');
+    const typeSel = row.querySelector('.condition-type-select');
+    const mtVal   = mtSel ? mtSel.value : 'any';
+    conditions.push({
+      perkId:   perkSel ? perkSel.value : '',
+      mountain: mtVal === 'any' ? 'any' : parseInt(mtVal, 10),
+      type:     typeSel ? typeSel.value : COND_WITHIN,
+    });
+  });
+  return conditions;
+}
+
+// updateSearchBtn: validates conditions and updates button + warning display
+function updateSearchBtn() {
+  const conditions = collectConditions();
+  const result = validateConditions(conditions);
+  const btn = document.getElementById('btn-search');
+  btn.disabled = !result.valid;
+  const warn = document.getElementById('search-warning');
+  if (result.warnings.length > 0) {
+    warn.textContent = '⚠ ' + result.warnings.join(' · ');
+    warn.style.display = 'inline';
+  } else {
+    warn.textContent = '';
+    warn.style.display = 'none';
+  }
+}
+
 document.getElementById('btn-add-condition').addEventListener('click', function() {
   document.getElementById('conditions-list').appendChild(makeConditionRow());
+  updateSearchBtn();
 });
 </script>
 </body>
