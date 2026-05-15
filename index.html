@@ -207,8 +207,6 @@ body {
   display: flex;
   align-items: center;
 }
-.shared-badge { color: #f59e0b; font-size: 9px; }
-
 .grid-player-label {
   padding: 10px 14px;
   border-right: 1px solid rgba(255,255,255,0.08);
@@ -231,33 +229,6 @@ body {
   min-width: 0;
 }
 
-/* Shared row */
-.shared-divider {
-  padding: 6px 14px;
-  background: rgba(251,191,36,0.04);
-  border-top: 1px solid rgba(251,191,36,0.2);
-  font-size: 10px;
-  color: #92400e;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.grid-shared-label {
-  padding: 8px 14px;
-  border-right: 1px solid rgba(255,255,255,0.08);
-  background: rgba(251,191,36,0.03);
-  font-size: 11px;
-  color: #78350f;
-  display: flex;
-  align-items: center;
-}
-.grid-shared-cell {
-  padding: 8px 10px;
-  background: rgba(251,191,36,0.03);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
 /* Perk badge */
 .perk-badge {
   display: inline-block;
@@ -269,7 +240,6 @@ body {
   letter-spacing: 0.02em;
   line-height: 1.4;
 }
-.perk-badge.small { padding: 2px 7px; font-size: 11px; }
 
 /* Debug section */
 .debug-section {
@@ -801,12 +771,11 @@ function renderLegend(deckSize) {
 }
 
 // ---- Perk badge ----
-function perkBadgeHtml(perkId, small) {
+function perkBadgeHtml(perkId) {
   const name = PERK_NAME_MAP[perkId] || perkId;
   const cat = PERK_CATEGORIES[perkId] || 'default';
   const c = CAT_COLORS[cat];
-  const cls = 'perk-badge' + (small ? ' small' : '');
-  return `<span class="${cls}" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">${escHtml(name)}</span>`;
+  return `<span class="perk-badge" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">${escHtml(name)}</span>`;
 }
 
 // ---- WASM init ----
@@ -868,26 +837,13 @@ function compute() {
 
   if (results.length === 0) return showError('Enter at least one Steam ID.');
 
-  // Shared perks per mountain
-  const sharedPerks = {};
-  if (results.length >= 2) {
-    for (let mi = 0; mi < visibleMountains; mi++) {
-      const counts = {};
-      for (const r of results) {
-        for (const p of (r.mountains[mi] || [])) counts[p] = (counts[p] || 0) + 1;
-      }
-      const shared = Object.keys(counts).filter(p => counts[p] > 1);
-      if (shared.length) sharedPerks[mi] = shared;
-    }
-  }
-
   renderLegend(results[0].deck.length);
-  renderGrid(results, visibleMountains, sharedPerks);
+  renderGrid(results, visibleMountains);
   renderDebug(seedStr, results);
   document.getElementById('results').style.display = 'block';
 }
 
-function renderGrid(results, vis, sharedPerks) {
+function renderGrid(results, vis) {
   const grid = document.getElementById('perk-grid');
   grid.style.gridTemplateColumns = `160px repeat(${vis}, minmax(180px, 1fr))`;
   grid.innerHTML = '';
@@ -898,10 +854,8 @@ function renderGrid(results, vis, sharedPerks) {
   for (let i = 0; i < vis; i++) {
     const hm = document.createElement('div');
     hm.className = 'grid-header-cell';
-    const bdr = i < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
-    hm.style.borderRight = bdr;
-    hm.innerHTML = `<span>HM ${i + 1}</span>` +
-      (sharedPerks[i] ? `<span class="shared-badge">★ ${sharedPerks[i].length} shared</span>` : '');
+    hm.style.borderRight = i < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+    hm.innerHTML = `<span>HM ${i + 1}</span>`;
     grid.appendChild(hm);
   }
 
@@ -917,25 +871,7 @@ function renderGrid(results, vis, sharedPerks) {
       const cell = document.createElement('div');
       cell.className = 'grid-perk-cell';
       cell.style.borderRight = mi < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
-      cell.innerHTML = (r.mountains[mi] || []).map(id => perkBadgeHtml(id, false)).join('');
-      grid.appendChild(cell);
-    }
-  }
-
-  // Shared row (only if any overlap exists)
-  if (results.length >= 2 && Object.keys(sharedPerks).length > 0) {
-    const divider = document.createElement('div');
-    divider.className = 'shared-divider';
-    divider.style.gridColumn = `1 / -1`;
-    divider.textContent = '★ Shared perks (appear for multiple players)';
-    grid.appendChild(divider);
-
-    grid.appendChild(div('grid-shared-label', 'Overlap'));
-    for (let mi = 0; mi < vis; mi++) {
-      const cell = document.createElement('div');
-      cell.className = 'grid-shared-cell';
-      cell.style.borderRight = mi < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
-      cell.innerHTML = (sharedPerks[mi] || []).map(id => perkBadgeHtml(id, true)).join('');
+      cell.innerHTML = (r.mountains[mi] || []).map(id => perkBadgeHtml(id)).join('');
       grid.appendChild(cell);
     }
   }
