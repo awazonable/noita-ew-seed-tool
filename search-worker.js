@@ -1,0 +1,97 @@
+// WebWorker: Seed search engine
+// Loads WASM-based perk calculator and iterates world seeds in chunks.
+// Chunk-based approach yields between chunks so pause/stop messages are processed.
+importScripts('perk-data.js', 'search-engine.js', 'perk-calculator.js');
+
+var CHUNK_SIZE = 5000;
+var PROGRESS_EVERY = 100000; // send progress message approximately every N seeds
+
+var _state = null;  // active search state, null when idle
+var _running = false; // true while a processChunk setTimeout is scheduled
+
+// _initPromise resolves once WASM is loaded
+var _initPromise = initWasm();
+
+function scheduleChunk() {
+  if (!_running) {
+    _running = true;
+    setTimeout(processChunk, 0);
+  }
+}
+
+function processChunk() {
+  _running = false;
+  if (!_state || _state.stopped) return;
+  if (_state.paused) return; // resume will call scheduleChunk
+
+  var chunkEnd = Math.min(_state.currentSeed + CHUNK_SIZE - 1, _state.seedEnd);
+
+  for (var seed = _state.currentSeed; seed <= chunkEnd; seed++) {
+    var deck = generatePerkDeck(seed >>> 0, _state.ewSeed.sx, _state.ewSeed.sy);
+    if (checkAllConditions(deck, _state.conditions)) {
+      _state.hitCount++;
+      self.postMessage({ type: 'hit', seed: seed });
+    }
+  }
+
+  var nextSeed = chunkEnd + 1;
+  var total = _state.seedEnd - _state.seedStart + 1;
+  var progress = nextSeed - _state.seedStart;
+
+  if (nextSeed > _state.seedEnd) {
+    self.postMessage({ type: 'progress', current: total, total: total });
+    self.postMessage({ type: 'done', total: total, hits: _state.hitCount });
+    _state = null;
+    return;
+  }
+
+  _state.currentSeed = nextSeed;
+
+  if (progress % PROGRESS_EVERY < CHUNK_SIZE) {
+    self.postMessage({ type: 'progress', current: progress, total: total });
+  }
+
+  scheduleChunk();
+}
+
+self.onmessage = function(e) {
+  var msg = e.data;
+
+  switch (msg.type) {
+    case 'start':
+      _initPromise.then(function() {
+        _state = {
+          ewSeed:      getEwSeed(msg.steamId),
+          currentSeed: msg.seedStart,
+          seedStart:   msg.seedStart,
+          seedEnd:     msg.seedEnd,
+          conditions:  msg.conditions,
+          hitCount:    0,
+          paused:      false,
+          stopped:     false,
+        };
+        scheduleChunk();
+      });
+      break;
+
+    case 'pause':
+      if (_state) _state.paused = true;
+      break;
+
+    case 'resume':
+      if (_state && _state.paused) {
+        _state.paused = false;
+        scheduleChunk();
+      }
+      break;
+
+    case 'stop':
+      if (_state) {
+        _state.stopped = true;
+        var progress = _state.currentSeed - _state.seedStart;
+        self.postMessage({ type: 'done', total: progress, hits: _state.hitCount });
+        _state = null;
+      }
+      break;
+  }
+};
