@@ -8,7 +8,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
 
   const {
     buildPerkDeck, getPerksPerMountain, computeOffsets,
-    getEwSeed, generatePerkDeck, getHolyMountainPerks, parseUrlParams,
+    getEwSeed, generatePerkDeck, getHolyMountainPerks, parseUrlParams, buildShareUrl,
   } = calc;
 
   // --- computeOffsets ---
@@ -201,6 +201,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     const r = parseUrlParams('?seed=786433000&steamid=76561198208852417');
     assert.equal(r.seed, '786433000', 'seed extracted');
     assert.deepEqual(r.steamIds, ['76561198208852417'], 'single steamId extracted');
+    assert.deepEqual(r.names, [], 'names empty when param absent');
     console.log('PASS: parseUrlParams single steamId');
   }
 
@@ -228,6 +229,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     const r = parseUrlParams('');
     assert.equal(r.seed, '', 'empty seed');
     assert.deepEqual(r.steamIds, [], 'empty steamIds');
+    assert.deepEqual(r.names, [], 'empty names');
     console.log('PASS: parseUrlParams empty');
   }
 
@@ -235,6 +237,93 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     const r = parseUrlParams('?steamid=111,,222,');
     assert.deepEqual(r.steamIds, ['111', '222'], 'empty segments filtered');
     console.log('PASS: parseUrlParams filters empty segments');
+  }
+
+  // --- parseUrlParams: names ---
+  {
+    const r = parseUrlParams('?seed=1&steamid=111,222&names=Alice,Bob');
+    assert.deepEqual(r.names, ['Alice', 'Bob'], 'names extracted');
+    console.log('PASS: parseUrlParams names ASCII');
+  }
+
+  {
+    // Multi-byte names: URLSearchParams handles %encoding automatically
+    const encoded = new URLSearchParams({ names: '太郎,花子' }).toString();
+    const r = parseUrlParams('?' + encoded);
+    assert.deepEqual(r.names, ['太郎', '花子'], 'multi-byte names decoded correctly');
+    console.log('PASS: parseUrlParams names multi-byte');
+  }
+
+  {
+    const r = parseUrlParams('?seed=1&steamid=111');
+    assert.deepEqual(r.names, [], 'names empty when param absent');
+    console.log('PASS: parseUrlParams names absent');
+  }
+
+  // --- buildShareUrl ---
+  {
+    const url = buildShareUrl('12345678', [
+      { name: 'Alice', steamId: '76561198208852417' },
+    ], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('seed'), '12345678', 'seed in URL');
+    assert.equal(parsed.searchParams.get('steamid'), '76561198208852417', 'steamid in URL');
+    assert.equal(parsed.searchParams.get('names'), 'Alice', 'name in URL');
+    console.log('PASS: buildShareUrl single player');
+  }
+
+  {
+    const url = buildShareUrl('999', [
+      { name: 'Player 1', steamId: '111' },
+      { name: 'Player 2', steamId: '222' },
+    ], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('steamid'), '111,222', 'multiple steamIds');
+    assert.equal(parsed.searchParams.get('names'), 'Player 1,Player 2', 'multiple names');
+    console.log('PASS: buildShareUrl multiple players');
+  }
+
+  {
+    // Multi-byte names round-trip
+    const url = buildShareUrl('1', [
+      { name: '太郎', steamId: '111' },
+      { name: '花子', steamId: '222' },
+    ], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('names'), '太郎,花子', 'multi-byte names round-trip');
+    // Verify round-trip through parseUrlParams
+    const r = parseUrlParams('?' + new URL(url).searchParams.toString());
+    assert.deepEqual(r.names, ['太郎', '花子'], 'multi-byte names parse round-trip');
+    console.log('PASS: buildShareUrl multi-byte names round-trip');
+  }
+
+  {
+    // Players with empty steamId are excluded
+    const url = buildShareUrl('1', [
+      { name: 'Alice', steamId: '111' },
+      { name: 'NoId', steamId: '' },
+    ], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('steamid'), '111', 'empty steamId excluded');
+    assert.equal(parsed.searchParams.get('names'), 'Alice', 'name of empty-steamId player excluded');
+    console.log('PASS: buildShareUrl excludes empty steamId');
+  }
+
+  {
+    // No seed — no seed param
+    const url = buildShareUrl('', [{ name: 'A', steamId: '1' }], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('seed'), null, 'no seed param when seed empty');
+    console.log('PASS: buildShareUrl no seed');
+  }
+
+  {
+    // No valid players — no steamid/names params
+    const url = buildShareUrl('123', [], 'https://example.com/');
+    const parsed = new URL(url);
+    assert.equal(parsed.searchParams.get('steamid'), null, 'no steamid param with empty players');
+    assert.equal(parsed.searchParams.get('names'), null, 'no names param with empty players');
+    console.log('PASS: buildShareUrl empty players');
   }
 
   console.log('\nAll tests passed!');

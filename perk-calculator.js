@@ -138,7 +138,25 @@ function parseUrlParams(search) {
   var steamIds = steamidParam
     ? steamidParam.split(',').map(function(s) { return s.trim(); }).filter(Boolean)
     : [];
-  return { seed: seed, steamIds: steamIds };
+  var namesParam = params.get('names') || '';
+  var names = namesParam
+    ? namesParam.split(',')
+    : [];
+  return { seed: seed, steamIds: steamIds, names: names };
+}
+
+// buildShareUrl: constructs a shareable URL encoding seed and all players (steamId + name)
+// players: Array<{ steamId: string, name: string }>
+// baseUrl: e.g. window.location.origin + window.location.pathname
+function buildShareUrl(seed, players, baseUrl) {
+  var params = new URLSearchParams();
+  if (seed) params.set('seed', seed);
+  var validPlayers = players.filter(function(p) { return p.steamId && p.steamId.trim(); });
+  if (validPlayers.length > 0) {
+    params.set('steamid', validPlayers.map(function(p) { return p.steamId.trim(); }).join(','));
+    params.set('names', validPlayers.map(function(p) { return p.name || ''; }).join(','));
+  }
+  return baseUrl + '?' + params.toString();
 }
 
 if (typeof module !== 'undefined') {
@@ -147,6 +165,6 @@ if (typeof module !== 'undefined') {
     computeOffsets, getEwSeed,
     generatePerkDeck, getHolyMountainPerks,
     buildPerkDeck, getPerksPerMountain,
-    parseUrlParams,
+    parseUrlParams, buildShareUrl,
   };
 }

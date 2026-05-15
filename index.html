@@ -18,7 +18,7 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.1);
   padding: 20px 28px 16px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 14px;
   background: rgba(255,255,255,0.02);
 }
@@ -33,6 +33,22 @@ body {
   font-size: 11px;
   color: #475569;
 }
+.btn-share {
+  margin-left: auto;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  color: #94a3b8;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn-share:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+.btn-share.copied { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
 
 .main { padding: 24px 28px; max-width: 1600px; }
 
@@ -483,6 +499,7 @@ body {
 <div class="header">
   <h1>EW Perk Viewer</h1>
   <span>Noita Entangled Worlds · per-player perk deck simulator</span>
+  <button class="btn-share" id="btn-share">COPY LINK</button>
 </div>
 
 <div class="tab-bar">
@@ -867,12 +884,15 @@ function escHtml(s) {
 
 // ---- URL parameter pre-fill ----
 function loadFromUrlParams() {
-  const { seed, steamIds } = parseUrlParams(window.location.search);
+  const { seed, steamIds, names } = parseUrlParams(window.location.search);
   if (seed) {
     document.getElementById('world-seed').value = seed;
   }
   if (steamIds.length > 0) {
-    players = steamIds.map((id, i) => ({ name: 'Player ' + (i + 1), steamId: id }));
+    players = steamIds.map((id, i) => ({
+      name: names[i] || 'Player ' + (i + 1),
+      steamId: id,
+    }));
   }
   renderPlayers();
   if (seed && steamIds.length > 0) compute();
@@ -880,6 +900,26 @@ function loadFromUrlParams() {
 
 // Initial render (with URL params applied)
 loadFromUrlParams();
+
+// ---- Share button ----
+document.getElementById('btn-share').addEventListener('click', function() {
+  var seed = document.getElementById('world-seed').value.trim();
+  var baseUrl = window.location.origin + window.location.pathname;
+  var url = buildShareUrl(seed, players, baseUrl);
+  var btn = document.getElementById('btn-share');
+  navigator.clipboard.writeText(url).then(function() {
+    btn.textContent = 'COPIED!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'COPY LINK';
+      btn.classList.remove('copied');
+    }, 1500);
+  }).catch(function() {
+    // Fallback for environments where clipboard API is unavailable
+    btn.textContent = 'COPY FAILED';
+    setTimeout(function() { btn.textContent = 'COPY LINK'; }, 1500);
+  });
+});
 
 // ---- Tab switching ----
 document.querySelector('.tab-bar').addEventListener('click', function(e) {
