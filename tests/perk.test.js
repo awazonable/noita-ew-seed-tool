@@ -9,6 +9,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
   const {
     buildPerkDeck, getPerksPerMountain, computeOffsets,
     getEwSeed, generatePerkDeck, getHolyMountainPerks, parseUrlParams, buildShareUrl,
+    SEARCH_HIT_LIMIT, encodeResults, decodeResults,
   } = calc;
 
   // --- computeOffsets ---
@@ -329,6 +330,62 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     assert.equal(parsed.searchParams.get('steamid'), null, 'no steamid param with empty players');
     assert.equal(parsed.searchParams.get('names'), null, 'no names param with empty players');
     console.log('PASS: buildShareUrl empty players');
+  }
+
+  // --- encodeResults / decodeResults ---
+  {
+    assert.equal(typeof SEARCH_HIT_LIMIT, 'number', 'SEARCH_HIT_LIMIT is a number');
+    assert(SEARCH_HIT_LIMIT >= 1, 'SEARCH_HIT_LIMIT is positive');
+
+    // Basic round-trip
+    const str = encodeResults(100, 999, [150, 200, 300]);
+    assert(typeof str === 'string' && str.length > 0, 'encodeResults returns non-empty string');
+    assert(/^[A-Za-z0-9_-]+$/.test(str), 'encodeResults returns URL-safe base64 (no +/=)');
+    const decoded = decodeResults(str);
+    assert(decoded !== null, 'decodeResults returns non-null for valid input');
+    assert.equal(decoded.start, 100, 'round-trip: start');
+    assert.equal(decoded.end, 999, 'round-trip: end');
+    assert.deepEqual(decoded.hits, [150, 200, 300], 'round-trip: hits');
+    console.log('PASS: encodeResults/decodeResults round-trip');
+  }
+
+  {
+    // Empty hits
+    const str = encodeResults(0, 4294967295, []);
+    const decoded = decodeResults(str);
+    assert.equal(decoded.start, 0, 'empty hits: start=0');
+    assert.equal(decoded.end, 4294967295, 'empty hits: end=UINT32_MAX');
+    assert.deepEqual(decoded.hits, [], 'empty hits: hits=[]');
+    console.log('PASS: encodeResults/decodeResults empty hits');
+  }
+
+  {
+    // uint32 boundary values
+    const str = encodeResults(4294967295, 4294967295, [4294967295]);
+    const decoded = decodeResults(str);
+    assert.equal(decoded.start, 4294967295, 'uint32 boundary: start');
+    assert.equal(decoded.end, 4294967295, 'uint32 boundary: end');
+    assert.deepEqual(decoded.hits, [4294967295], 'uint32 boundary: hit');
+    console.log('PASS: encodeResults/decodeResults uint32 boundary');
+  }
+
+  {
+    // Hits capped at SEARCH_HIT_LIMIT
+    const manyHits = [];
+    for (let i = 0; i < SEARCH_HIT_LIMIT + 10; i++) manyHits.push(i);
+    const str = encodeResults(0, 1000, manyHits);
+    const decoded = decodeResults(str);
+    assert.equal(decoded.hits.length, SEARCH_HIT_LIMIT, 'hits capped at SEARCH_HIT_LIMIT');
+    assert.deepEqual(decoded.hits, manyHits.slice(0, SEARCH_HIT_LIMIT), 'first SEARCH_HIT_LIMIT hits preserved');
+    console.log('PASS: encodeResults caps hits at SEARCH_HIT_LIMIT');
+  }
+
+  {
+    // decodeResults invalid inputs
+    assert.equal(decodeResults(''), null, 'empty string returns null');
+    assert.equal(decodeResults(null), null, 'null returns null');
+    assert.equal(decodeResults('!!!'), null, 'invalid base64 returns null');
+    console.log('PASS: decodeResults handles invalid input');
   }
 
   console.log('\nAll tests passed!');

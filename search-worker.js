@@ -6,6 +6,7 @@ importScripts('perk-data.js', 'search-engine.js', 'perk-calculator.js');
 
 var CHUNK_SIZE = 5000;
 var PROGRESS_EVERY = 100000; // send progress message approximately every N seeds
+var HIT_LIMIT = 100;
 
 var _state = null;  // active search state, null when idle
 var _running = false; // true while a processChunk setTimeout is scheduled
@@ -34,6 +35,12 @@ function processChunk() {
     if (checkAllConditionsWithPlayerMode(decks, _state.conditions)) {
       _state.hitCount++;
       self.postMessage({ type: 'hit', seed: seed });
+      if (_state.hitCount >= HIT_LIMIT) {
+        var totalSoFar = seed + 1 - _state.seedStart;
+        self.postMessage({ type: 'done', total: totalSoFar, hits: _state.hitCount, hitLimitReached: true });
+        _state = null;
+        return;
+      }
     }
   }
 
