@@ -288,6 +288,76 @@ body {
 .footer code { color: #475569; }
 
 #results { display: none; }
+
+/* Tabs */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.02);
+  padding: 0 28px;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  padding: 10px 18px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: -1px;
+}
+.tab-btn:hover { color: #94a3b8; }
+.tab-btn.active { color: #a5b4fc; border-bottom-color: rgba(99,102,241,0.7); }
+
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Seed Search pane */
+.search-steamid-row { margin-bottom: 20px; max-width: 400px; }
+.conditions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.conditions-header label {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+#conditions-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.condition-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.condition-row select {
+  background: #1e2433;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  color: #f1f5f9;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+.condition-row select:focus { border-color: rgba(99,102,241,0.6); }
+.condition-mt-select { width: 160px; }
+.condition-perk-select { flex: 1; max-width: 320px; }
+#search-results-area {
+  padding: 24px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #475569;
+  text-align: center;
+}
 </style>
 </head>
 <body>
@@ -296,6 +366,12 @@ body {
   <span>Noita Entangled Worlds · per-player perk deck simulator</span>
 </div>
 
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="viewer">Perk Viewer</button>
+  <button class="tab-btn" data-tab="search">Seed Search</button>
+</div>
+
+<div id="pane-viewer" class="tab-pane active">
 <div class="main">
   <div class="config">
     <!-- Left: seed + mountains -->
@@ -350,6 +426,30 @@ body {
     </div>
   </div>
 </div>
+</div><!-- #pane-viewer -->
+
+<div id="pane-search" class="tab-pane">
+<div class="main">
+  <div class="search-steamid-row">
+    <div class="field">
+      <label>Steam ID 64 (decimal)</label>
+      <input type="text" id="search-steamid" placeholder="76561198XXXXXXXXX" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+
+  <div>
+    <div class="conditions-header">
+      <label>Conditions (all must match)</label>
+      <button class="btn-add" id="btn-add-condition">+ Add Condition</button>
+    </div>
+    <div id="conditions-list"></div>
+  </div>
+
+  <div id="search-results-area">
+    Add conditions above and start a search to see matching seeds.
+  </div>
+</div>
+</div><!-- #pane-search -->
 
 <script src="perk-data.js"></script>
 <script src="perk-calculator.js"></script>
@@ -629,6 +729,57 @@ function loadFromUrlParams() {
 
 // Initial render (with URL params applied)
 loadFromUrlParams();
+
+// ---- Tab switching ----
+document.querySelector('.tab-bar').addEventListener('click', function(e) {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  const tab = btn.dataset.tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+});
+
+// ---- Seed Search: condition rows ----
+function makeConditionRow() {
+  const row = document.createElement('div');
+  row.className = 'condition-row';
+
+  const mtSel = document.createElement('select');
+  mtSel.className = 'condition-mt-select';
+  for (var m = 1; m <= 12; m++) {
+    var opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = 'Holy Mountain ' + m;
+    mtSel.appendChild(opt);
+  }
+
+  const perkSel = document.createElement('select');
+  perkSel.className = 'condition-perk-select';
+  var blankOpt = document.createElement('option');
+  blankOpt.value = '';
+  blankOpt.textContent = '— select perk —';
+  perkSel.appendChild(blankOpt);
+  PERK_POOL.forEach(function(p) {
+    var o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    perkSel.appendChild(o);
+  });
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'btn-remove';
+  removeBtn.textContent = '×';
+  removeBtn.addEventListener('click', function() { row.remove(); });
+
+  row.appendChild(mtSel);
+  row.appendChild(perkSel);
+  row.appendChild(removeBtn);
+  return row;
+}
+
+document.getElementById('btn-add-condition').addEventListener('click', function() {
+  document.getElementById('conditions-list').appendChild(makeConditionRow());
+});
 </script>
 </body>
 </html>
