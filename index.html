@@ -18,7 +18,7 @@ body {
   border-bottom: 1px solid rgba(255,255,255,0.1);
   padding: 20px 28px 16px;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 14px;
   background: rgba(255,255,255,0.02);
 }
@@ -518,7 +518,6 @@ body {
 <div class="header">
   <h1>EW Perk Viewer</h1>
   <span>Noita Entangled Worlds · per-player perk deck simulator</span>
-  <button class="btn-share" id="btn-share">COPY LINK</button>
 </div>
 
 <div class="tab-bar">
@@ -550,6 +549,7 @@ body {
   <div class="generate-row">
     <button class="btn-generate" id="btn-generate" disabled>Loading WASM…</button>
     <span class="error-msg" id="error-msg"></span>
+    <button class="btn-share" id="btn-share">COPY LINK</button>
   </div>
 
   <div id="results">
