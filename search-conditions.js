@@ -1,13 +1,17 @@
 // Search condition definitions for Seed Search feature
-// Each condition: { perkId: string, mountain: number|'any', type: 'exactly'|'within' }
+// Each condition: { perkId: string, mountain: number|'any', type: 'exactly'|'within', players: 'all'|'any' }
 //
 // mountain: 1-7 = specific Holy Mountain, 'any' = any of HM 1-7
 // type 'exactly': perk must appear in that specific mountain (positions mountain*3 ± 2)
 // type 'within':  perk must appear in HM 1 through HM mountain
 // type is ignored when mountain === 'any'
+// players 'all': every player must satisfy this condition
+// players 'any': at least one player must satisfy this condition (default)
 
-var COND_EXACTLY = 'exactly';
-var COND_WITHIN  = 'within';
+var COND_EXACTLY     = 'exactly';
+var COND_WITHIN      = 'within';
+var COND_PLAYERS_ALL = 'all';
+var COND_PLAYERS_ANY = 'any';
 
 // validateConditions: pure function — returns { valid: bool, warnings: string[] }
 // conditions: array of { perkId, mountain, type }
@@ -40,19 +44,20 @@ function validateConditions(conditions) {
   };
 }
 
-// toWorkerConditions: converts #15 UI format → #16 worker protocol format
-// Input:  [{ perkId, mountain, type: 'exactly'|'within' }]
-// Output: [{ perk, mountain, mode: 'exact'|'within' }]
+// toWorkerConditions: converts UI format → worker protocol format
+// Input:  [{ perkId, mountain, type: 'exactly'|'within', players: 'all'|'any' }]
+// Output: [{ perk, mountain, mode: 'exact'|'within', players: 'all'|'any' }]
 function toWorkerConditions(conditions) {
   return conditions.map(function(c) {
     return {
       perk:     c.perkId,
       mountain: c.mountain,
       mode:     c.type === 'exactly' ? 'exact' : 'within',
+      players:  c.players || COND_PLAYERS_ANY,
     };
   });
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { COND_EXACTLY, COND_WITHIN, validateConditions, toWorkerConditions };
+  module.exports = { COND_EXACTLY, COND_WITHIN, COND_PLAYERS_ALL, COND_PLAYERS_ANY, validateConditions, toWorkerConditions };
 }

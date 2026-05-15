@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('assert').strict;
 const calc = require('../perk-calculator.js');
-const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllConditionsMultiPlayer, checkAllConditionsAllPlayers } = require('../search-engine.js');
+const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllConditionsMultiPlayer, checkAllConditionsAllPlayers, checkAllConditionsWithPlayerMode } = require('../search-engine.js');
 
 (async () => {
   await calc.initWasm();
@@ -239,6 +239,63 @@ const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllC
     ]), 'empty decks + non-empty conditions → false');
 
     console.log('PASS: checkAllConditionsAllPlayers');
+  }
+
+  // ---- checkAllConditionsWithPlayerMode ----
+  {
+    const deckA = deck1; // ws=3280915446: HM1=[INVISIBILITY,NO_WAND_EDITING,TELEPORTITIS_DODGE]
+    const deckB = deck2; // ws=11111111: HM1=[STAINLESS_ARMOUR,PROTECTION_EXPLOSION,EXTRA_SHOP_ITEM]
+    const decks = [deckA, deckB];
+
+    // players='any': satisfied if any player has it (OR)
+    assert(checkAllConditionsWithPlayerMode(decks, [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', players: 'any' },
+    ]), 'any: deckA has INVISIBILITY → match');
+    assert(checkAllConditionsWithPlayerMode(decks, [
+      { perk: 'STAINLESS_ARMOUR', mountain: 1, mode: 'exact', players: 'any' },
+    ]), 'any: deckB has STAINLESS_ARMOUR → match');
+    assert(!checkAllConditionsWithPlayerMode(decks, [
+      { perk: 'EXTRA_HP', mountain: 1, mode: 'exact', players: 'any' },
+    ]), 'any: no player has EXTRA_HP → no match');
+
+    // players='all': every player must have it (AND)
+    assert(!checkAllConditionsWithPlayerMode(decks, [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', players: 'all' },
+    ]), 'all: deckB lacks INVISIBILITY → no match');
+    assert(checkAllConditionsWithPlayerMode([deck1, deck3], [
+      { perk: 'NO_WAND_EDITING', mountain: 1, mode: 'exact', players: 'all' },
+    ]), 'all: both deck1 and deck3 have NO_WAND_EDITING → match');
+
+    // Mixed: one condition 'any', one 'all'
+    assert(checkAllConditionsWithPlayerMode([deck1, deck3], [
+      { perk: 'INVISIBILITY',    mountain: 1, mode: 'exact', players: 'any' }, // deck1 ✓
+      { perk: 'NO_WAND_EDITING', mountain: 1, mode: 'exact', players: 'all' }, // both ✓
+    ]), 'mixed: any+all both satisfied');
+    assert(!checkAllConditionsWithPlayerMode(decks, [
+      { perk: 'INVISIBILITY',    mountain: 1, mode: 'exact', players: 'any' }, // deck1 ✓
+      { perk: 'NO_WAND_EDITING', mountain: 1, mode: 'exact', players: 'all' }, // deck2 ✗
+    ]), 'mixed: all condition fails when a player lacks perk');
+
+    // Empty conditions always match
+    assert(checkAllConditionsWithPlayerMode(decks, []),
+      'empty conditions → always true');
+    assert(checkAllConditionsWithPlayerMode([], []),
+      'empty decks + empty conditions → true');
+
+    // Empty decks with non-empty conditions
+    assert(!checkAllConditionsWithPlayerMode([], [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', players: 'any' },
+    ]), 'empty decks + any condition → false');
+    assert(!checkAllConditionsWithPlayerMode([], [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', players: 'all' },
+    ]), 'empty decks + all condition → false');
+
+    // players defaults to 'any' when omitted
+    assert(checkAllConditionsWithPlayerMode([deck1], [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' }, // no players field
+    ]), 'players omitted → defaults to any');
+
+    console.log('PASS: checkAllConditionsWithPlayerMode');
   }
 
   console.log('\nAll search-engine tests passed!');
