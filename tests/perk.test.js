@@ -191,8 +191,13 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
       assert.deepEqual(mountains[i], deck.slice(i * 3, i * 3 + 3), 'mountain perks are sequential');
     }
 
+    // Default (no argument) must return exactly 7 mountains — game has 7 Holy Mountains
+    const mtsDefault = getHolyMountainPerks(deck);
+    assert.equal(mtsDefault.length, 7, 'getHolyMountainPerks default returns 7 mountains');
+
     const mts7 = getPerksPerMountain(deck);
     assert.equal(mts7.length, 7, 'getPerksPerMountain returns 7 mountains');
+    assert.deepEqual(mtsDefault, mts7, 'getHolyMountainPerks() and getPerksPerMountain() return identical results');
     console.log('PASS: getHolyMountainPerks / getPerksPerMountain');
   }
 
