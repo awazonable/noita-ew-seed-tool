@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('assert').strict;
 const calc = require('../perk-calculator.js');
-const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllConditionsMultiPlayer } = require('../search-engine.js');
+const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllConditionsMultiPlayer, checkAllConditionsAllPlayers } = require('../search-engine.js');
 
 (async () => {
   await calc.initWasm();
@@ -202,6 +202,43 @@ const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllC
     ]), 'single deck: all HM1 perks for ws=3280915446');
 
     console.log('PASS: checkAllConditionsMultiPlayer');
+  }
+
+  // ---- checkAllConditionsAllPlayers ----
+  {
+    const deckA = deck1; // ws=3280915446: HM1=[INVISIBILITY,NO_WAND_EDITING,TELEPORTITIS_DODGE]
+    const deckB = deck2; // ws=11111111: HM1=[STAINLESS_ARMOUR,PROTECTION_EXPLOSION,EXTRA_SHOP_ITEM]
+    const decks = [deckA, deckB];
+
+    // Both players satisfy all conditions independently
+    assert(checkAllConditionsAllPlayers([deck1], [
+      { perk: 'INVISIBILITY',       mountain: 1, mode: 'exact' },
+      { perk: 'NO_WAND_EDITING',    mountain: 1, mode: 'exact' },
+      { perk: 'TELEPORTITIS_DODGE', mountain: 1, mode: 'exact' },
+    ]), 'single player satisfies all conditions');
+
+    // One player does not satisfy all conditions → fails
+    assert(!checkAllConditionsAllPlayers(decks, [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' }, // deckA ✓, deckB ✗
+    ]), 'fails when any player misses a condition');
+
+    // Both players share the same perk in HM1 — deck1 and deck3 both have NO_WAND_EDITING
+    assert(checkAllConditionsAllPlayers([deck1, deck3], [
+      { perk: 'NO_WAND_EDITING', mountain: 1, mode: 'exact' },
+    ]), 'all players have NO_WAND_EDITING in HM1');
+
+    // Empty conditions always matches (regardless of decks)
+    assert(checkAllConditionsAllPlayers(decks, []),
+      'empty conditions → always true (all-players)');
+    assert(checkAllConditionsAllPlayers([], []),
+      'empty decks + empty conditions → always true');
+
+    // Empty decks + non-empty conditions → false (no players to satisfy)
+    assert(!checkAllConditionsAllPlayers([], [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' },
+    ]), 'empty decks + non-empty conditions → false');
+
+    console.log('PASS: checkAllConditionsAllPlayers');
   }
 
   console.log('\nAll search-engine tests passed!');

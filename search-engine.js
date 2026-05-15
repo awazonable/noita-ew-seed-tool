@@ -63,9 +63,19 @@ function checkAllConditionsMultiPlayer(decks, conditions) {
   return true;
 }
 
+// checkAllConditionsAllPlayers: every player must satisfy all conditions (AND across all)
+function checkAllConditionsAllPlayers(decks, conditions) {
+  if (conditions.length === 0) return true;
+  for (var i = 0; i < decks.length; i++) {
+    if (!checkAllConditions(decks[i], conditions)) return false;
+  }
+  return decks.length > 0;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     checkCondition, checkAllConditions,
     checkConditionMultiPlayer, checkAllConditionsMultiPlayer,
+    checkAllConditionsAllPlayers,
   };
 }
