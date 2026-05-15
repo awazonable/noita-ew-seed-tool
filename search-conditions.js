@@ -40,6 +40,19 @@ function validateConditions(conditions) {
   };
 }
 
+// toWorkerConditions: converts #15 UI format → #16 worker protocol format
+// Input:  [{ perkId, mountain, type: 'exactly'|'within' }]
+// Output: [{ perk, mountain, mode: 'exact'|'within' }]
+function toWorkerConditions(conditions) {
+  return conditions.map(function(c) {
+    return {
+      perk:     c.perkId,
+      mountain: c.mountain,
+      mode:     c.type === 'exactly' ? 'exact' : 'within',
+    };
+  });
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { COND_EXACTLY, COND_WITHIN, validateConditions };
+  module.exports = { COND_EXACTLY, COND_WITHIN, validateConditions, toWorkerConditions };
 }
