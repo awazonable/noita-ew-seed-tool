@@ -327,7 +327,7 @@ body {
   </div>
 
   <div class="generate-row">
-    <button class="btn-generate" id="btn-generate">GENERATE PERK DECKS</button>
+    <button class="btn-generate" id="btn-generate" disabled>Loading WASM…</button>
     <span class="error-msg" id="error-msg"></span>
   </div>
 
@@ -342,9 +342,10 @@ body {
     </details>
     <div class="footer">
       <strong>Note:</strong> This simulator replicates the EW randomize_perks feature.
-      EW overrides the per-player seed via <code>SetRandomSeed(1+sx, 2+sy)</code> and delegates
-      to vanilla <code>perk_get_spawn_order</code>, which uses Noita's dual-LCG PRNG
-      (214013×x+2531011 XOR 17405×y+10395331, 15-bit output) with draw-without-replacement.
+      PRNG: Nolla PRNG (Bob Jenkins hash + Park-Miller LCG) via
+      <a href="https://github.com/TwoAbove/noita-tools" style="color:#475569">noita-tools</a> rng.wasm (MIT).
+      EW sets <code>SetRandomSeed(1+sx, 2+sy)</code> per player, then vanilla
+      <code>perk_get_spawn_order</code> builds a 103-perk pool with stackable duplicates and shuffles.
       Requires <code>randomize_perks = true</code> in EW proxy settings (default: on).
     </div>
   </div>
@@ -466,6 +467,19 @@ function perkBadgeHtml(perkId, small) {
   return `<span class="${cls}" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">${escHtml(name)}</span>`;
 }
 
+// ---- WASM init ----
+(async function() {
+  const btn = document.getElementById('btn-generate');
+  try {
+    await initWasm();
+  } catch (e) {
+    document.getElementById('error-msg').textContent = 'Failed to load WASM: ' + e.message;
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = 'GENERATE PERK DECKS';
+})();
+
 // ---- Generate ----
 document.getElementById('btn-generate').onclick = compute;
 document.addEventListener('keydown', function(e) { if (e.key === 'Enter') compute(); });
@@ -586,7 +600,7 @@ function renderDebug(seedStr, results) {
     results.map(r =>
       `<div class="player-debug"><span>${escHtml(r.name)}</span> · steam_id=${escHtml(r.steamId)} · hex=${r.hex} · sx=${r.sx} sy=${r.sy} · SetRandomSeed(${1 + r.sx}, ${2 + r.sy})</div>`
     ).join('') +
-    `<div class="debug-note">Algorithm: EW SetRandomSeed(1+sx, 2+sy) → vanilla perk_get_spawn_order() → dual-LCG (214013×x+2531011 XOR 17405×y+10395331), 15-bit, draw without replacement</div>`;
+    `<div class="debug-note">Algorithm: EW SetRandomSeed(1+sx, 2+sy) → vanilla perk_get_spawn_order() → Nolla PRNG (Bob Jenkins + Park-Miller LCG), 103-perk pool with stackable duplicates, Fisher-Yates shuffle</div>`;
 }
 
 // ---- Utilities ----
