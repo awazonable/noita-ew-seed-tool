@@ -316,7 +316,20 @@ body {
 .tab-pane.active { display: block; }
 
 /* Seed Search pane */
-.search-steamid-row { margin-bottom: 20px; max-width: 400px; }
+.search-players-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+.search-players-note strong { color: #94a3b8; }
+.search-players-note .spn-count { color: #a5b4fc; margin-left: auto; }
 .conditions-header {
   display: flex;
   justify-content: space-between;
@@ -535,11 +548,10 @@ body {
 
 <div id="pane-search" class="tab-pane">
 <div class="main">
-  <div class="search-steamid-row">
-    <div class="field">
-      <label>Steam ID 64 (decimal)</label>
-      <input type="text" id="search-steamid" placeholder="76561198XXXXXXXXX" autocomplete="off" spellcheck="false">
-    </div>
+  <div class="search-players-note">
+    <strong>Players</strong>
+    <span>Configured in Perk Viewer tab — add or edit Steam IDs there.</span>
+    <span class="spn-count" id="search-player-count">0 player(s)</span>
   </div>
 
   <div>
@@ -654,6 +666,7 @@ function renderPlayers() {
     `;
     list.appendChild(row);
   });
+  updateSearchPlayerCount();
 }
 
 document.getElementById('btn-add-player').onclick = function() {
@@ -665,6 +678,7 @@ document.getElementById('players-list').addEventListener('input', function(e) {
   const t = e.target;
   if (t.dataset.idx !== undefined && t.dataset.field) {
     players[+t.dataset.idx][t.dataset.field] = t.value;
+    if (t.dataset.field === 'steamId') updateSearchPlayerCount();
   }
 });
 
@@ -873,7 +887,15 @@ document.querySelector('.tab-bar').addEventListener('click', function(e) {
   const tab = btn.dataset.tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+  if (tab === 'search') updateSearchPlayerCount();
 });
+
+// updateSearchPlayerCount: reflects the players count in the Seed Search pane
+function updateSearchPlayerCount() {
+  var count = players.filter(function(p) { return p.steamId.trim(); }).length;
+  var el = document.getElementById('search-player-count');
+  if (el) el.textContent = count + ' player' + (count !== 1 ? 's' : '') + ' configured';
+}
 
 // ---- Seed Search: condition rows ----
 function makeConditionRow() {
@@ -1077,18 +1099,8 @@ function addHitSeed(seed) {
 }
 
 function openSeedInViewer(seed) {
-  // Set seed in viewer
+  // Set seed in viewer (players are already shared, no sync needed)
   document.getElementById('world-seed').value = seed;
-
-  // Sync search SteamID to first player if not already present
-  var searchSid = document.getElementById('search-steamid').value.trim();
-  if (searchSid) {
-    var already = players.some(function(p) { return p.steamId.trim() === searchSid; });
-    if (!already) {
-      players[0].steamId = searchSid;
-      renderPlayers();
-    }
-  }
 
   // Switch to Perk Viewer tab
   document.querySelectorAll('.tab-btn').forEach(function(b) {
@@ -1119,15 +1131,14 @@ function handleWorkerMessage(e) {
 }
 
 function startSearch() {
-  var steamId = document.getElementById('search-steamid').value.trim();
-  if (!steamId) {
-    document.getElementById('search-warning').textContent = '⚠ Steam ID is required.';
-    document.getElementById('search-warning').style.display = 'inline';
-    return;
-  }
-  // Validate Steam ID
-  try { if (BigInt(steamId) <= 0n) throw new Error(); } catch(_) {
-    document.getElementById('search-warning').textContent = '⚠ Invalid Steam ID.';
+  // Collect valid Steam IDs from shared players list
+  var validPlayers = players.filter(function(p) {
+    var sid = p.steamId.trim();
+    if (!sid) return false;
+    try { return BigInt(sid) > 0n; } catch(_) { return false; }
+  });
+  if (validPlayers.length === 0) {
+    document.getElementById('search-warning').textContent = '⚠ Add at least one Steam ID in Perk Viewer.';
     document.getElementById('search-warning').style.display = 'inline';
     return;
   }
@@ -1171,7 +1182,7 @@ function startSearch() {
 
   _worker.postMessage({
     type:       'start',
-    steamId:    steamId,
+    steamIds:   validPlayers.map(function(p) { return p.steamId.trim(); }),
     seedStart:  0,
     seedEnd:    4294967295,
     conditions: workerConditions,

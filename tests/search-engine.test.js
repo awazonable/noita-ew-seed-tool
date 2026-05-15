@@ -1,7 +1,7 @@
 'use strict';
 const assert = require('assert').strict;
 const calc = require('../perk-calculator.js');
-const { checkCondition, checkAllConditions } = require('../search-engine.js');
+const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllConditionsMultiPlayer } = require('../search-engine.js');
 
 (async () => {
   await calc.initWasm();
@@ -141,6 +141,67 @@ const { checkCondition, checkAllConditions } = require('../search-engine.js');
     assert(checkCondition(deck1, { perk: hm2perk, mountain: 2, mode: 'within' }),
       'HM2[0] within HM2');
     console.log('PASS: checkCondition mountain boundary positions');
+  }
+
+  // ---- checkConditionMultiPlayer ----
+  {
+    // Player 1 has INVISIBILITY in HM1 (ws=3280915446)
+    // Player 2 has STAINLESS_ARMOUR in HM1 (ws=11111111)
+    const ew2 = calc.getEwSeed('76561198208852417'); // same player for simplicity
+    const deckA = deck1; // INVISIBILITY in HM1
+    const deckB = deck2; // STAINLESS_ARMOUR in HM1
+    const decks = [deckA, deckB];
+
+    // Condition satisfied by player 1
+    assert(checkConditionMultiPlayer(decks, { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' }),
+      'INVISIBILITY: satisfied by player 1');
+    // Condition satisfied by player 2
+    assert(checkConditionMultiPlayer(decks, { perk: 'STAINLESS_ARMOUR', mountain: 1, mode: 'exact' }),
+      'STAINLESS_ARMOUR: satisfied by player 2');
+    // Condition satisfied by neither
+    assert(!checkConditionMultiPlayer(decks, { perk: 'EXTRA_HP', mountain: 1, mode: 'exact' }),
+      'EXTRA_HP in HM1: satisfied by neither');
+    // Single-deck edge case
+    assert(checkConditionMultiPlayer([deck1], { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' }),
+      'single-deck multi-player behaves like single-player');
+    console.log('PASS: checkConditionMultiPlayer basic');
+  }
+
+  // ---- checkAllConditionsMultiPlayer ----
+  {
+    const deckA = deck1; // ws=3280915446: HM1=[INVISIBILITY,NO_WAND_EDITING,TELEPORTITIS_DODGE]
+    const deckB = deck2; // ws=11111111: HM1=[STAINLESS_ARMOUR,PROTECTION_EXPLOSION,EXTRA_SHOP_ITEM]
+    const decks = [deckA, deckB];
+
+    // Both conditions satisfied collectively (each by a different deck)
+    assert(checkAllConditionsMultiPlayer(decks, [
+      { perk: 'INVISIBILITY',    mountain: 1, mode: 'exact' }, // → deckA
+      { perk: 'STAINLESS_ARMOUR', mountain: 1, mode: 'exact' }, // → deckB
+    ]), 'cross-player condition satisfaction');
+
+    // Fails if one condition is not met by any player
+    assert(!checkAllConditionsMultiPlayer(decks, [
+      { perk: 'INVISIBILITY',  mountain: 1, mode: 'exact' }, // → deckA ✓
+      { perk: 'EXTRA_HP',      mountain: 1, mode: 'exact' }, // ✗
+    ]), 'fails when one condition not met by any player');
+
+    // Empty conditions always matches
+    assert(checkAllConditionsMultiPlayer(decks, []),
+      'empty conditions → always true (multi-player)');
+
+    // Empty decks array: no player satisfies any condition → fails
+    assert(!checkAllConditionsMultiPlayer([], [
+      { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' },
+    ]), 'empty decks + non-empty conditions → false');
+
+    // Single-deck behaves like single-player
+    assert(checkAllConditionsMultiPlayer([deck1], [
+      { perk: 'INVISIBILITY',      mountain: 1, mode: 'exact' },
+      { perk: 'NO_WAND_EDITING',   mountain: 1, mode: 'exact' },
+      { perk: 'TELEPORTITIS_DODGE', mountain: 1, mode: 'exact' },
+    ]), 'single deck: all HM1 perks for ws=3280915446');
+
+    console.log('PASS: checkAllConditionsMultiPlayer');
   }
 
   console.log('\nAll search-engine tests passed!');

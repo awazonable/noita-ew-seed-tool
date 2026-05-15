@@ -1,6 +1,7 @@
 // WebWorker: Seed search engine
 // Loads WASM-based perk calculator and iterates world seeds in chunks.
-// Chunk-based approach yields between chunks so pause/stop messages are processed.
+// Accepts steamIds: string[] (or legacy steamId: string) and checks conditions
+// across all players' decks — a condition matches if any player satisfies it.
 importScripts('perk-data.js', 'search-engine.js', 'perk-calculator.js');
 
 var CHUNK_SIZE = 5000;
@@ -27,8 +28,10 @@ function processChunk() {
   var chunkEnd = Math.min(_state.currentSeed + CHUNK_SIZE - 1, _state.seedEnd);
 
   for (var seed = _state.currentSeed; seed <= chunkEnd; seed++) {
-    var deck = generatePerkDeck(seed >>> 0, _state.ewSeed.sx, _state.ewSeed.sy);
-    if (checkAllConditions(deck, _state.conditions)) {
+    var decks = _state.ewSeeds.map(function(ew) {
+      return generatePerkDeck(seed >>> 0, ew.sx, ew.sy);
+    });
+    if (checkAllConditionsMultiPlayer(decks, _state.conditions)) {
       _state.hitCount++;
       self.postMessage({ type: 'hit', seed: seed });
     }
@@ -60,8 +63,10 @@ self.onmessage = function(e) {
   switch (msg.type) {
     case 'start':
       _initPromise.then(function() {
+        // Accept steamIds (array) or legacy steamId (string)
+        var ids = msg.steamIds || (msg.steamId ? [msg.steamId] : []);
         _state = {
-          ewSeed:      getEwSeed(msg.steamId),
+          ewSeeds:     ids.map(function(sid) { return getEwSeed(sid); }),
           currentSeed: msg.seedStart,
           seedStart:   msg.seedStart,
           seedEnd:     msg.seedEnd,

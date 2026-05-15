@@ -46,6 +46,26 @@ function checkAllConditions(deck, conditions) {
   return true;
 }
 
+// checkConditionMultiPlayer: condition is satisfied if ANY deck satisfies it
+function checkConditionMultiPlayer(decks, condition) {
+  for (var i = 0; i < decks.length; i++) {
+    if (checkCondition(decks[i], condition)) return true;
+  }
+  return false;
+}
+
+// checkAllConditionsMultiPlayer: all conditions must be satisfied (AND),
+// each condition independently satisfied by any player (OR across players)
+function checkAllConditionsMultiPlayer(decks, conditions) {
+  for (var i = 0; i < conditions.length; i++) {
+    if (!checkConditionMultiPlayer(decks, conditions[i])) return false;
+  }
+  return true;
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { checkCondition, checkAllConditions };
+  module.exports = {
+    checkCondition, checkAllConditions,
+    checkConditionMultiPlayer, checkAllConditionsMultiPlayer,
+  };
 }
