@@ -159,6 +159,36 @@ function buildShareUrl(seed, players, baseUrl) {
   return baseUrl + '?' + params.toString();
 }
 
+// ---- Search condition encoding ----
+
+// encodeConditions: conditions array → array of "perkId:mountain:type:players" strings
+// Conditions without a perkId are filtered out.
+function encodeConditions(conditions) {
+  return conditions
+    .filter(function(c) { return c.perkId; })
+    .map(function(c) {
+      return [c.perkId, c.mountain, c.type, c.players].join(':');
+    });
+}
+
+// decodeConditions: array of "perkId:mountain:type:players" strings → conditions array
+// Invalid/malformed entries are silently dropped.
+function decodeConditions(encoded) {
+  if (!Array.isArray(encoded)) return [];
+  return encoded
+    .map(function(s) {
+      var parts = s.split(':');
+      if (parts.length !== 4 || !parts[0]) return null;
+      var mt = parts[1] === 'any' ? 'any' : parseInt(parts[1], 10);
+      if (parts[1] !== 'any' && (isNaN(mt) || mt < 1 || mt > 7)) return null;
+      var type    = parts[2] === 'exactly' || parts[2] === 'within' ? parts[2] : null;
+      var players = parts[3] === 'all'     || parts[3] === 'any'    ? parts[3] : null;
+      if (!type || !players) return null;
+      return { perkId: parts[0], mountain: mt, type: type, players: players };
+    })
+    .filter(Boolean);
+}
+
 // ---- Search result encoding ----
 
 var SEARCH_HIT_LIMIT = 100;
@@ -202,6 +232,7 @@ if (typeof module !== 'undefined') {
     generatePerkDeck, getHolyMountainPerks,
     buildPerkDeck, getPerksPerMountain,
     parseUrlParams, buildShareUrl,
+    encodeConditions, decodeConditions,
     SEARCH_HIT_LIMIT, encodeResults, decodeResults,
   };
 }

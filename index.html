@@ -487,6 +487,22 @@ body {
 .btn-copy-results:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
 .btn-copy-results.copied { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
 
+.rm-range { color: #475569; font-size: 11px; white-space: nowrap; }
+.btn-copy-seed {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 3px;
+  color: #475569;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 3px;
+  transition: color 0.12s;
+}
+.btn-copy-seed:hover { color: #94a3b8; }
+
 /* Results area */
 #search-results-area {
   background: rgba(255,255,255,0.02);
@@ -639,6 +655,10 @@ body {
     <div class="results-meta" id="results-meta">
       <span><span class="rm-hits" id="hit-count">0</span> hit(s) found</span>
       <span class="rm-status" id="results-status-text"></span>
+      <span class="rm-range" id="results-range-area" style="display:none">
+        Searched: <span id="results-range-start">0</span> – <span id="results-range-end">0</span>
+        <button class="btn-copy-seed" id="btn-copy-end-seed" title="Copy stop seed">⧉</button>
+      </span>
       <button class="btn-copy-results" id="btn-copy-results" style="display:none">COPY RESULTS URL</button>
     </div>
     <div id="results-list"></div>
@@ -975,7 +995,7 @@ function updateSearchPlayerCount() {
 }
 
 // ---- Seed Search: condition rows ----
-function makeConditionRow() {
+function makeConditionRow(initial) {
   const row = document.createElement('div');
   row.className = 'condition-row';
 
@@ -1040,6 +1060,14 @@ function makeConditionRow() {
   mtSel.addEventListener('change', updateSearchBtn);
   typeSel.addEventListener('change', updateSearchBtn);
   playersSel.addEventListener('change', updateSearchBtn);
+
+  // Apply initial values if provided (used when restoring from URL)
+  if (initial) {
+    perkSel.value    = initial.perkId   || '';
+    mtSel.value      = initial.mountain != null ? String(initial.mountain) : 'any';
+    typeSel.value    = initial.type     || 'exactly';
+    playersSel.value = initial.players  || 'all';
+  }
 
   row.appendChild(perkSel);
   row.appendChild(mtSel);
@@ -1221,9 +1249,9 @@ function handleWorkerMessage(e) {
       _searchActualEndSeed = _searchStartSeed + (msg.total > 0 ? msg.total - 1 : 0);
       setSearchState('done');
       if (msg.hitLimitReached) {
-        document.getElementById('results-status-text').textContent =
-          '(hit limit reached — searched up to seed ' + _searchActualEndSeed.toLocaleString() + ')';
+        document.getElementById('results-status-text').textContent = '(hit limit reached)';
       }
+      showSearchRange(_searchStartSeed, _searchActualEndSeed);
       if (_hitSeeds.length > 0) {
         document.getElementById('btn-copy-results').style.display = 'inline-block';
       }
@@ -1270,6 +1298,7 @@ function startSearch() {
   document.getElementById('results-status-text').textContent = '';
   document.getElementById('results-meta').style.display = 'flex';
   document.getElementById('btn-copy-results').style.display = 'none';
+  document.getElementById('results-range-area').style.display = 'none';
   document.getElementById('progress-fill').style.width = '0%';
   document.getElementById('progress-pct').textContent = '0%';
   document.getElementById('progress-eta-wrap').style.display = 'none';
@@ -1328,17 +1357,35 @@ document.getElementById('btn-stop-search').addEventListener('click', function() 
   // Worker will send 'done'; clean up there
 });
 
+function showSearchRange(start, end) {
+  document.getElementById('results-range-start').textContent = start.toLocaleString();
+  document.getElementById('results-range-end').textContent = end.toLocaleString();
+  document.getElementById('results-range-area').style.display = 'inline';
+}
+
+document.getElementById('btn-copy-end-seed').addEventListener('click', function() {
+  var btn = document.getElementById('btn-copy-end-seed');
+  navigator.clipboard.writeText(String(_searchActualEndSeed)).then(function() {
+    btn.textContent = '✓';
+    setTimeout(function() { btn.textContent = '⧉'; }, 1000);
+  }).catch(function() {
+    btn.textContent = '✗';
+    setTimeout(function() { btn.textContent = '⧉'; }, 1000);
+  });
+});
+
 document.getElementById('btn-copy-results').addEventListener('click', function() {
   if (_hitSeeds.length === 0) return;
   var encoded = encodeResults(_searchStartSeed, _searchActualEndSeed, _hitSeeds);
-  var seed = document.getElementById('world-seed').value.trim();
   var params = new URLSearchParams();
-  if (seed) params.set('seed', seed);
+  // No seed= — perk viewer seed is unrelated to search results
   var validPlayers = players.filter(function(p) { return p.steamId && p.steamId.trim(); });
   if (validPlayers.length > 0) {
     params.set('steamid', validPlayers.map(function(p) { return p.steamId.trim(); }).join(','));
     params.set('names', validPlayers.map(function(p) { return p.name || ''; }).join(','));
   }
+  // Embed all conditions with a perkId selected
+  encodeConditions(collectConditions()).forEach(function(c) { params.append('c', c); });
   params.set('r', encoded);
   var url = window.location.origin + window.location.pathname + '?' + params.toString();
   var btn = document.getElementById('btn-copy-results');
@@ -1372,6 +1419,20 @@ function loadSearchResultsFromUrl() {
     p.classList.toggle('active', p.id === 'pane-search');
   });
 
+  // Restore conditions (c= params)
+  var cParams = params.getAll('c');
+  var restoredConditions = decodeConditions(cParams);
+  if (restoredConditions.length > 0) {
+    document.getElementById('conditions-list').innerHTML = '';
+    restoredConditions.forEach(function(cond) {
+      document.getElementById('conditions-list').appendChild(makeConditionRow(cond));
+    });
+    updateSearchBtn();
+  }
+
+  // Restore start seed in "From seed" input
+  document.getElementById('search-from-seed').value = String(decoded.start);
+
   // Restore state
   _hitCount = 0;
   _hitSeeds = [];
@@ -1382,8 +1443,8 @@ function loadSearchResultsFromUrl() {
   document.getElementById('results-list').innerHTML = '';
   document.getElementById('results-placeholder').style.display = 'none';
   document.getElementById('results-meta').style.display = 'flex';
-  document.getElementById('results-status-text').textContent =
-    '(range: ' + decoded.start.toLocaleString() + ' – ' + decoded.end.toLocaleString() + ')';
+  document.getElementById('results-status-text').textContent = '';
+  showSearchRange(decoded.start, decoded.end);
 
   // Add each hit (prepend order matches live search: highest seed ends up on top)
   decoded.hits.forEach(function(seed) { addHitSeed(seed); });

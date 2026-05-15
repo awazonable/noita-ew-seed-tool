@@ -9,6 +9,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
   const {
     buildPerkDeck, getPerksPerMountain, computeOffsets,
     getEwSeed, generatePerkDeck, getHolyMountainPerks, parseUrlParams, buildShareUrl,
+    encodeConditions, decodeConditions,
     SEARCH_HIT_LIMIT, encodeResults, decodeResults,
   } = calc;
 
@@ -330,6 +331,68 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     assert.equal(parsed.searchParams.get('steamid'), null, 'no steamid param with empty players');
     assert.equal(parsed.searchParams.get('names'), null, 'no names param with empty players');
     console.log('PASS: buildShareUrl empty players');
+  }
+
+  // --- encodeConditions / decodeConditions ---
+  {
+    // Basic encode
+    const conditions = [
+      { perkId: 'PROJECTILE_HOMING', mountain: 1, type: 'exactly', players: 'all' },
+      { perkId: 'INVISIBILITY', mountain: 'any', type: 'within', players: 'any' },
+    ];
+    const encoded = encodeConditions(conditions);
+    assert.deepEqual(encoded, [
+      'PROJECTILE_HOMING:1:exactly:all',
+      'INVISIBILITY:any:within:any',
+    ], 'encodeConditions produces colon-separated strings');
+    console.log('PASS: encodeConditions basic');
+  }
+
+  {
+    // Round-trip
+    const conditions = [
+      { perkId: 'STAINLESS_ARMOUR', mountain: 3, type: 'within', players: 'any' },
+      { perkId: 'EXTRA_HP', mountain: 'any', type: 'exactly', players: 'all' },
+    ];
+    const decoded = decodeConditions(encodeConditions(conditions));
+    assert.deepEqual(decoded, conditions, 'encode→decode round-trip');
+    console.log('PASS: encodeConditions/decodeConditions round-trip');
+  }
+
+  {
+    // encodeConditions filters out entries without perkId
+    const enc = encodeConditions([
+      { perkId: '', mountain: 1, type: 'exactly', players: 'all' },
+      { perkId: 'EXTRA_HP', mountain: 2, type: 'within', players: 'any' },
+    ]);
+    assert.deepEqual(enc, ['EXTRA_HP:2:within:any'], 'encodeConditions filters empty perkId');
+    console.log('PASS: encodeConditions filters empty perkId');
+  }
+
+  {
+    // decodeConditions filters invalid entries
+    const decoded = decodeConditions([
+      'invalid',                          // too few colons
+      'PERK:1:exactly:all',               // valid
+      'PERK:99:exactly:all',              // mountain out of range
+      'PERK:1:badtype:all',               // invalid type
+      'PERK:1:exactly:badplayers',        // invalid players
+      '::exactly:all',                    // empty perkId
+    ]);
+    assert.equal(decoded.length, 1, 'decodeConditions filters invalid entries');
+    assert.equal(decoded[0].perkId, 'PERK', 'valid entry preserved');
+    assert.equal(decoded[0].mountain, 1);
+    assert.equal(decoded[0].type, 'exactly');
+    assert.equal(decoded[0].players, 'all');
+    console.log('PASS: decodeConditions filters invalid entries');
+  }
+
+  {
+    // decodeConditions handles empty/non-array input
+    assert.deepEqual(encodeConditions([]), [], 'encodeConditions empty');
+    assert.deepEqual(decodeConditions([]), [], 'decodeConditions empty array');
+    assert.deepEqual(decodeConditions(null), [], 'decodeConditions null');
+    console.log('PASS: encodeConditions/decodeConditions edge cases');
   }
 
   // --- encodeResults / decodeResults ---
