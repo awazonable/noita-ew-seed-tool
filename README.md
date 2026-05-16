@@ -10,7 +10,7 @@ Noita の Entangled Worlds (EW) 環境下で、World Seed と SteamID64 を入�
 
 ## デプロイ
 
-GitHub Pages でホスト: `https://awazonable.github.io/noita-ew-seed-tool/`
+GitHub Pages でホスト: [https://awazonable.github.io/noita-ew-seed-tool/](https://awazonable.github.io/noita-ew-seed-tool/)
 
 ## 参考実装
 
