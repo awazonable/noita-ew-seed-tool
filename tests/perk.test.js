@@ -8,7 +8,7 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
 
   const {
     buildPerkDeck, getPerksPerMountain, computeOffsets,
-    getEwSeed, generatePerkDeck, getHolyMountainPerks, parseUrlParams, buildShareUrl,
+    getEwSeed, generatePerkDeck, getHolyMountainPerks, getRerollSlots, parseUrlParams, buildShareUrl,
     encodeConditions, decodeConditions,
     SEARCH_HIT_LIMIT, encodeResults, decodeResults,
   } = calc;
@@ -494,6 +494,70 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
 
     assert.deepEqual(hits4, hits1, '4-worker interleave finds same hits as single-worker');
     console.log('PASS: multi-worker interleave produces same results as single-worker scan');
+  }
+
+  // --- getRerollSlots ---
+  {
+    const { sx, sy } = getEwSeed('76561198208852417');
+    const deck = generatePerkDeck(3280915446, sx, sy);
+
+    assert.deepEqual(getRerollSlots(deck, 0), [], 'numRerolls=0 → empty array');
+
+    const slots1 = getRerollSlots(deck, 1);
+    assert.equal(slots1.length, 1, 'numRerolls=1 → 1 slot');
+    assert.deepEqual(slots1[0], deck.slice(deck.length - 3), 'reroll slot 1 = last 3 perks');
+
+    const slots2 = getRerollSlots(deck, 2);
+    assert.equal(slots2.length, 2, 'numRerolls=2 → 2 slots');
+    assert.deepEqual(slots2[0], deck.slice(deck.length - 3), 'slots2[0] = reroll 1 (newest)');
+    assert.deepEqual(slots2[1], deck.slice(deck.length - 6, deck.length - 3), 'slots2[1] = reroll 2');
+
+    const slots3 = getRerollSlots(deck, 3);
+    assert.equal(slots3.length, 3, 'numRerolls=3 → 3 slots');
+    assert.deepEqual(slots3[2], deck.slice(deck.length - 9, deck.length - 6), 'slots3[2] = reroll 3');
+
+    console.log('PASS: getRerollSlots');
+  }
+
+  // --- encodeConditions / decodeConditions with rerolls ---
+  {
+    // rerolls > 0 produces 5-part encoding
+    const enc = encodeConditions([
+      { perkId: 'PROJECTILE_HOMING', mountain: 1, type: 'exactly', players: 'all', rerolls: 2 },
+    ]);
+    assert.deepEqual(enc, ['PROJECTILE_HOMING:1:exactly:all:2'], 'rerolls > 0 → 5-part encoding');
+    console.log('PASS: encodeConditions with rerolls > 0');
+  }
+
+  {
+    // Round-trip with rerolls
+    const conditions = [
+      { perkId: 'STAINLESS_ARMOUR', mountain: 3, type: 'within', players: 'any', rerolls: 3 },
+    ];
+    const decoded = decodeConditions(encodeConditions(conditions));
+    assert.deepEqual(decoded, conditions, 'encode→decode round-trip with rerolls');
+    console.log('PASS: encodeConditions/decodeConditions round-trip with rerolls');
+  }
+
+  {
+    // Legacy 4-part input decodes without rerolls field (backward compat)
+    const decoded = decodeConditions(['EXTRA_HP:2:within:any']);
+    assert.equal(decoded.length, 1, 'legacy 4-part decodes successfully');
+    assert.equal(decoded[0].perkId, 'EXTRA_HP');
+    assert.equal(decoded[0].rerolls, undefined, 'legacy 4-part has no rerolls field');
+    console.log('PASS: decodeConditions legacy 4-part format (no rerolls)');
+  }
+
+  {
+    // Invalid rerolls values in 5-part are rejected
+    const decoded = decodeConditions([
+      'EXTRA_HP:2:within:any:-1',   // negative rerolls
+      'EXTRA_HP:2:within:any:abc',  // non-numeric
+      'EXTRA_HP:2:within:any:3',    // valid
+    ]);
+    assert.equal(decoded.length, 1, 'invalid rerolls values filtered out');
+    assert.equal(decoded[0].rerolls, 3, 'valid rerolls preserved');
+    console.log('PASS: decodeConditions filters invalid rerolls values');
   }
 
   console.log('\nAll tests passed!');

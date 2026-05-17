@@ -116,6 +116,17 @@ function getHolyMountainPerks(deck, numMountains) {
   return mountains;
 }
 
+// getRerollSlots: returns numRerolls reroll slots from the end of the deck.
+// Slot k=1 is the first reroll (deck tail), k=2 the second, etc.
+// Each slot is an array of 3 perk IDs.
+function getRerollSlots(deck, numRerolls) {
+  var slots = [];
+  for (var k = 1; k <= numRerolls; k++) {
+    slots.push(deck.slice(Math.max(0, deck.length - k * 3), deck.length - (k - 1) * 3));
+  }
+  return slots;
+}
+
 // ---- Backward-compat wrappers (used by tests) ----
 
 // buildPerkDeck: hex steamId string, perkPool param kept for API compat (ignored)
@@ -161,30 +172,41 @@ function buildShareUrl(seed, players, baseUrl) {
 
 // ---- Search condition encoding ----
 
-// encodeConditions: conditions array → array of "perkId:mountain:type:players" strings
+// encodeConditions: conditions array → array of encoded strings
+// Format: "perkId:mountain:type:players" (4-part) when rerolls is 0/absent,
+//         "perkId:mountain:type:players:rerolls" (5-part) when rerolls > 0.
 // Conditions without a perkId are filtered out.
 function encodeConditions(conditions) {
   return conditions
     .filter(function(c) { return c.perkId; })
     .map(function(c) {
-      return [c.perkId, c.mountain, c.type, c.players].join(':');
+      var parts = [c.perkId, c.mountain, c.type, c.players];
+      if (c.rerolls > 0) parts.push(c.rerolls);
+      return parts.join(':');
     });
 }
 
-// decodeConditions: array of "perkId:mountain:type:players" strings → conditions array
+// decodeConditions: array of encoded strings → conditions array
+// Accepts 4-part (legacy, rerolls absent) or 5-part (with rerolls) format.
 // Invalid/malformed entries are silently dropped.
 function decodeConditions(encoded) {
   if (!Array.isArray(encoded)) return [];
   return encoded
     .map(function(s) {
       var parts = s.split(':');
-      if (parts.length !== 4 || !parts[0]) return null;
+      if ((parts.length !== 4 && parts.length !== 5) || !parts[0]) return null;
       var mt = parts[1] === 'any' ? 'any' : parseInt(parts[1], 10);
       if (parts[1] !== 'any' && (isNaN(mt) || mt < 1 || mt > 7)) return null;
       var type    = parts[2] === 'exactly' || parts[2] === 'within' ? parts[2] : null;
       var players = parts[3] === 'all'     || parts[3] === 'any'    ? parts[3] : null;
       if (!type || !players) return null;
-      return { perkId: parts[0], mountain: mt, type: type, players: players };
+      var result = { perkId: parts[0], mountain: mt, type: type, players: players };
+      if (parts.length === 5) {
+        var rerolls = parseInt(parts[4], 10);
+        if (isNaN(rerolls) || rerolls < 0) return null;
+        result.rerolls = rerolls;
+      }
+      return result;
     })
     .filter(Boolean);
 }
@@ -229,7 +251,7 @@ if (typeof module !== 'undefined') {
   module.exports = {
     initWasm,
     computeOffsets, getEwSeed,
-    generatePerkDeck, getHolyMountainPerks,
+    generatePerkDeck, getHolyMountainPerks, getRerollSlots,
     buildPerkDeck, getPerksPerMountain,
     parseUrlParams, buildShareUrl,
     encodeConditions, decodeConditions,

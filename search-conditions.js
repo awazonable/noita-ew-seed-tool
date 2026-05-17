@@ -45,16 +45,19 @@ function validateConditions(conditions) {
 }
 
 // toWorkerConditions: converts UI format → worker protocol format
-// Input:  [{ perkId, mountain, type: 'exactly'|'within', players: 'all'|'any' }]
-// Output: [{ perk, mountain, mode: 'exact'|'within', players: 'all'|'any' }]
+// Input:  [{ perkId, mountain, type: 'exactly'|'within', players: 'all'|'any', rerolls?: number }]
+// Output: [{ perk, mountain, mode: 'exact'|'within', players: 'all'|'any'[, rerolls: number] }]
+// rerolls is only included in the output when > 0.
 function toWorkerConditions(conditions) {
   return conditions.map(function(c) {
-    return {
+    var result = {
       perk:     c.perkId,
       mountain: c.mountain,
       mode:     c.type === 'exactly' ? 'exact' : 'within',
       players:  c.players || COND_PLAYERS_ANY,
     };
+    if (c.rerolls > 0) result.rerolls = c.rerolls;
+    return result;
   });
 }
 
