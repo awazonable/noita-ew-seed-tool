@@ -207,6 +207,13 @@ body {
   display: flex;
   align-items: center;
 }
+.grid-header-cell.reroll-col {
+  background: rgba(99,102,241,0.06);
+  color: #818cf8;
+}
+.grid-perk-cell.reroll-col {
+  background: rgba(99,102,241,0.03);
+}
 .grid-player-label {
   padding: 10px 14px;
   border-right: 1px solid rgba(255,255,255,0.08);
@@ -809,6 +816,8 @@ function clearError() {
   document.getElementById('error-msg').textContent = '';
 }
 
+var NUM_REROLLS_SHOWN = 3;
+
 function compute() {
   clearError();
   const seedStr = document.getElementById('world-seed').value.trim();
@@ -833,20 +842,23 @@ function compute() {
     }
     const deck = generatePerkDeck(seedNum, ewSeed.sx, ewSeed.sy);
     const mountains = getHolyMountainPerks(deck, 7);
-    results.push({ name: pl.name, steamId: sid, hex: ewSeed.hex, sx: ewSeed.sx, sy: ewSeed.sy, deck, mountains });
+    const rerollSlots = getRerollSlots(deck, NUM_REROLLS_SHOWN);
+    results.push({ name: pl.name, steamId: sid, hex: ewSeed.hex, sx: ewSeed.sx, sy: ewSeed.sy, deck, mountains, rerollSlots });
   }
 
   if (results.length === 0) return showError('Enter at least one Steam ID.');
 
   renderLegend(results[0].deck.length);
-  renderGrid(results, visibleMountains);
+  renderGrid(results, visibleMountains, NUM_REROLLS_SHOWN);
   renderDebug(seedStr, results);
   document.getElementById('results').style.display = 'block';
 }
 
-function renderGrid(results, vis) {
+function renderGrid(results, vis, numRerolls) {
+  if (numRerolls === undefined) numRerolls = 0;
+  const totalCols = vis + numRerolls;
   const grid = document.getElementById('perk-grid');
-  grid.style.gridTemplateColumns = `160px repeat(${vis}, minmax(180px, 1fr))`;
+  grid.style.gridTemplateColumns = `160px repeat(${totalCols}, minmax(180px, 1fr))`;
   grid.innerHTML = '';
 
   // Header row
@@ -855,8 +867,16 @@ function renderGrid(results, vis) {
   for (let i = 0; i < vis; i++) {
     const hm = document.createElement('div');
     hm.className = 'grid-header-cell';
-    hm.style.borderRight = i < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+    hm.style.borderRight = '1px solid rgba(255,255,255,0.05)';
     hm.innerHTML = `<span>HM ${i + 1}</span>`;
+    grid.appendChild(hm);
+  }
+  for (let k = 0; k < numRerolls; k++) {
+    const hm = document.createElement('div');
+    hm.className = 'grid-header-cell reroll-col';
+    if (k === 0) hm.style.borderLeft = '2px solid rgba(99,102,241,0.3)';
+    hm.style.borderRight = k < numRerolls - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+    hm.innerHTML = `<span>↺${k + 1}</span>`;
     grid.appendChild(hm);
   }
 
@@ -871,8 +891,16 @@ function renderGrid(results, vis) {
     for (let mi = 0; mi < vis; mi++) {
       const cell = document.createElement('div');
       cell.className = 'grid-perk-cell';
-      cell.style.borderRight = mi < vis - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+      cell.style.borderRight = '1px solid rgba(255,255,255,0.05)';
       cell.innerHTML = (r.mountains[mi] || []).map(id => perkBadgeHtml(id)).join('');
+      grid.appendChild(cell);
+    }
+    for (let k = 0; k < numRerolls; k++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-perk-cell reroll-col';
+      if (k === 0) cell.style.borderLeft = '2px solid rgba(99,102,241,0.3)';
+      cell.style.borderRight = k < numRerolls - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none';
+      cell.innerHTML = ((r.rerollSlots || [])[k] || []).map(id => perkBadgeHtml(id)).join('');
       grid.appendChild(cell);
     }
   }
