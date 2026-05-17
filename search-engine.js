@@ -7,35 +7,42 @@
 //                positions: 0 .. mountain*3-1
 // mountain 'any': perk appears anywhere in HM1-7 (positions 0-20)
 
-// checkCondition: returns true if deck satisfies one condition
+// checkCondition: returns true if deck satisfies one condition.
+// condition.rerolls (default 0): also check the last rerolls*3 positions of the deck.
 function checkCondition(deck, condition) {
-  var perkId = condition.perk;
+  var perkId  = condition.perk;
   var mountain = condition.mountain;
+  var rerolls = condition.rerolls || 0;
+  var i, start, end;
 
   if (mountain === 'any') {
     var limit = Math.min(21, deck.length);
-    for (var i = 0; i < limit; i++) {
+    for (i = 0; i < limit; i++) {
       if (deck[i] === perkId) return true;
     }
-    return false;
+  } else {
+    var m = mountain; // 1-indexed
+    if (condition.mode === 'exact') {
+      start = (m - 1) * 3;
+      end = m * 3;
+    } else {
+      // 'within'
+      start = 0;
+      end = m * 3;
+    }
+    for (i = start; i < end && i < deck.length; i++) {
+      if (deck[i] === perkId) return true;
+    }
   }
 
-  var m = mountain; // 1-indexed
-  if (condition.mode === 'exact') {
-    var start = (m - 1) * 3;
-    var end = m * 3;
-    for (var i = start; i < end && i < deck.length; i++) {
+  if (rerolls > 0) {
+    start = Math.max(0, deck.length - rerolls * 3);
+    for (i = start; i < deck.length; i++) {
       if (deck[i] === perkId) return true;
     }
-    return false;
-  } else {
-    // 'within'
-    var end = m * 3;
-    for (var i = 0; i < end && i < deck.length; i++) {
-      if (deck[i] === perkId) return true;
-    }
-    return false;
   }
+
+  return false;
 }
 
 // checkAllConditions: returns true only if all conditions are satisfied (AND)

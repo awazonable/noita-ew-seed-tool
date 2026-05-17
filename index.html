@@ -350,6 +350,7 @@ body {
 .condition-mt-select { width: 130px; flex-shrink: 0; }
 .condition-type-select { width: 100px; flex-shrink: 0; }
 .condition-players-select { width: 110px; flex-shrink: 0; }
+.condition-rerolls-select { width: 115px; flex-shrink: 0; }
 
 .search-action-row {
   display: flex;
@@ -1006,6 +1007,16 @@ function makeConditionRow(initial) {
     playersSel.appendChild(o);
   });
 
+  // Reroll limit selector: 0 = initial offer only, N = initial or any of rerolls 1..N
+  const rerollsSel = document.createElement('select');
+  rerollsSel.className = 'condition-rerolls-select';
+  [[0, '↺ 0 rerolls'], [1, '↺ 1 reroll'], [2, '↺ 2 rerolls'], [3, '↺ 3 rerolls'], [4, '↺ 4 rerolls'], [5, '↺ 5 rerolls']].forEach(function([val, label]) {
+    const o = document.createElement('option');
+    o.value = val;
+    o.textContent = label;
+    rerollsSel.appendChild(o);
+  });
+
   // Remove button
   const removeBtn = document.createElement('button');
   removeBtn.className = 'btn-remove';
@@ -1019,19 +1030,22 @@ function makeConditionRow(initial) {
   mtSel.addEventListener('change', updateSearchBtn);
   typeSel.addEventListener('change', updateSearchBtn);
   playersSel.addEventListener('change', updateSearchBtn);
+  rerollsSel.addEventListener('change', updateSearchBtn);
 
   // Apply initial values if provided (used when restoring from URL)
   if (initial) {
-    perkSel.value    = initial.perkId   || '';
-    mtSel.value      = initial.mountain != null ? String(initial.mountain) : 'any';
-    typeSel.value    = initial.type     || 'exactly';
-    playersSel.value = initial.players  || 'all';
+    perkSel.value     = initial.perkId   || '';
+    mtSel.value       = initial.mountain != null ? String(initial.mountain) : 'any';
+    typeSel.value     = initial.type     || 'exactly';
+    playersSel.value  = initial.players  || 'all';
+    rerollsSel.value  = initial.rerolls  != null ? String(initial.rerolls) : '0';
   }
 
   row.appendChild(perkSel);
   row.appendChild(mtSel);
   row.appendChild(typeSel);
   row.appendChild(playersSel);
+  row.appendChild(rerollsSel);
   row.appendChild(removeBtn);
   return row;
 }
@@ -1045,12 +1059,15 @@ function collectConditions() {
     const mtSel      = row.querySelector('.condition-mt-select');
     const typeSel    = row.querySelector('.condition-type-select');
     const playersSel = row.querySelector('.condition-players-select');
+    const rerollsSel = row.querySelector('.condition-rerolls-select');
     const mtVal      = mtSel ? mtSel.value : 'any';
+    const rerollsVal = rerollsSel ? parseInt(rerollsSel.value, 10) : 0;
     conditions.push({
       perkId:   perkSel ? perkSel.value : '',
       mountain: mtVal === 'any' ? 'any' : parseInt(mtVal, 10),
       type:     typeSel ? typeSel.value : COND_WITHIN,
       players:  playersSel ? playersSel.value : COND_PLAYERS_ANY,
+      rerolls:  rerollsVal || 0,
     });
   });
   return conditions;

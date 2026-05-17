@@ -332,5 +332,83 @@ const { checkCondition, checkAllConditions, checkConditionMultiPlayer, checkAllC
     console.log('PASS: regression #30 — PROJECTILE_HOMING All Players seed 7');
   }
 
+  // ---- checkCondition: rerolls ----
+  // Using deck1 (ws=3280915446): deck[len-3..len-1] = reroll 1, deck[len-6..len-4] = reroll 2
+  {
+    // Perk in initial offer still matches when rerolls is 0 (existing behavior preserved)
+    assert(checkCondition(deck1, { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', rerolls: 0 }),
+      'initial offer perk still matches with rerolls:0');
+    assert(checkCondition(deck1, { perk: 'INVISIBILITY', mountain: 1, mode: 'exact', rerolls: 3 }),
+      'initial offer perk still matches with rerolls:3');
+    assert(checkCondition(deck1, { perk: 'INVISIBILITY', mountain: 1, mode: 'exact' }),
+      'initial offer perk still matches with no rerolls field');
+    console.log('PASS: checkCondition rerolls — initial offer always checked');
+  }
+
+  {
+    // Reroll slot 1 = deck1[len-3..len-1]
+    // Find a perk in reroll slot 1 that is NOT in the first 21 positions (HM1-7 initial offers)
+    const r1Set = new Set(deck1.slice(deck1.length - 3));
+    const initialSet = new Set(deck1.slice(0, 21));
+    const reroll1Only = Array.from(r1Set).find(function(p) { return !initialSet.has(p); });
+
+    if (reroll1Only) {
+      assert(checkCondition(deck1, { perk: reroll1Only, mountain: 'any', mode: 'exact', rerolls: 1 }),
+        'reroll-slot-1 perk matches with mountain:any, rerolls:1');
+      assert(!checkCondition(deck1, { perk: reroll1Only, mountain: 'any', mode: 'exact', rerolls: 0 }),
+        'reroll-slot-1 perk does NOT match with rerolls:0');
+      assert(!checkCondition(deck1, { perk: reroll1Only, mountain: 'any', mode: 'exact' }),
+        'reroll-slot-1 perk does NOT match with rerolls omitted');
+    }
+    console.log('PASS: checkCondition rerolls:1 — reroll slot 1 detection');
+  }
+
+  {
+    // Reroll slot 2 = deck1[len-6..len-4]; reroll slot 1 = deck1[len-3..len-1]
+    // Find a perk only in reroll slot 2 (not in initial HM1-7 or reroll slot 1)
+    const r2Set = new Set(deck1.slice(deck1.length - 6, deck1.length - 3));
+    const r1Set = new Set(deck1.slice(deck1.length - 3));
+    const initialSet = new Set(deck1.slice(0, 21));
+    const reroll2Only = Array.from(r2Set).find(function(p) {
+      return !initialSet.has(p) && !r1Set.has(p);
+    });
+
+    if (reroll2Only) {
+      assert(!checkCondition(deck1, { perk: reroll2Only, mountain: 'any', mode: 'exact', rerolls: 1 }),
+        'reroll-slot-2-only perk does NOT match with rerolls:1');
+      assert(checkCondition(deck1, { perk: reroll2Only, mountain: 'any', mode: 'exact', rerolls: 2 }),
+        'reroll-slot-2-only perk matches with rerolls:2');
+    }
+    console.log('PASS: checkCondition rerolls:2 — reroll slot 2 detection');
+  }
+
+  {
+    // Any perk from reroll slot 1 should match with mountain:any, rerolls:1
+    // (even if it also appears in initial offers)
+    const r1perk = deck1[deck1.length - 1];
+    assert(checkCondition(deck1, { perk: r1perk, mountain: 'any', mode: 'exact', rerolls: 1 }),
+      'any perk from reroll slot 1 matches mountain:any, rerolls:1');
+    console.log('PASS: checkCondition rerolls — any mountain + rerolls checks both');
+  }
+
+  {
+    // checkAllConditionsWithPlayerMode respects rerolls field
+    const r1Set = new Set(deck1.slice(deck1.length - 3));
+    const initialSet = new Set(deck1.slice(0, 21));
+    const reroll1Only = Array.from(r1Set).find(function(p) { return !initialSet.has(p); });
+
+    if (reroll1Only) {
+      // Should hit with rerolls:1
+      assert(checkAllConditionsWithPlayerMode([deck1], [
+        { perk: reroll1Only, mountain: 'any', mode: 'exact', players: 'any', rerolls: 1 },
+      ]), 'checkAllConditionsWithPlayerMode respects rerolls');
+      // Should NOT hit with rerolls:0
+      assert(!checkAllConditionsWithPlayerMode([deck1], [
+        { perk: reroll1Only, mountain: 'any', mode: 'exact', players: 'any', rerolls: 0 },
+      ]), 'checkAllConditionsWithPlayerMode rerolls:0 misses reroll-only perk');
+    }
+    console.log('PASS: checkAllConditionsWithPlayerMode with rerolls');
+  }
+
   console.log('\nAll search-engine tests passed!');
 })().catch(err => { console.error(err); process.exit(1); });
