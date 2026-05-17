@@ -113,6 +113,27 @@ const { PERK_POOL, PERK_NAME_MAP } = require('../perk-data.js');
     console.log('PASS: game-verified ws=12345678 → [REVENGE_EXPLOSION, NO_MORE_SHUFFLE, NO_WAND_EDITING]');
   }
 
+  // --- Game-verified: 2^32 boundary seeds (proxy seeds > uint32 max, verified in-game) ---
+  // EW proxy passes the value as Lua number; Noita C++ SetWorldSeed truncates to uint32 (mod 2^32).
+  // JavaScript: parseInt(proxySeed, 10) >>> 0  ≡  proxySeed mod 2^32
+  // SteamID64 76561198208852417 → sx=69329, sy=74177
+  {
+    const { sx, sy } = getEwSeed('76561198208852417');
+
+    // proxy=4294967295 (2^32-1) → uint32=4294967295 (no reduction needed)
+    const dBoundary = generatePerkDeck(4294967295 >>> 0, sx, sy);
+    assert.deepEqual(dBoundary.slice(0, 3), ['STAINLESS_ARMOUR', 'EXTRA_HP', 'ALWAYS_CAST'],
+      'proxy seed 2^32-1 → uint32=4294967295 → HM1 must match game');
+    console.log('PASS: game-verified proxy=4294967295 (2^32-1) → [STAINLESS_ARMOUR, EXTRA_HP, ALWAYS_CAST]');
+
+    // proxy=4294967297 (2^32+1) → uint32=1 (mod 2^32)
+    assert.equal(4294967297 >>> 0, 1, 'proxy 2^32+1 maps to uint32=1');
+    const dOver = generatePerkDeck(4294967297 >>> 0, sx, sy);
+    assert.deepEqual(dOver.slice(0, 3), ['LOW_RECOIL', 'BLEED_GAS', 'EXTRA_MONEY'],
+      'proxy seed 2^32+1 → uint32=1 → HM1 must match game');
+    console.log('PASS: game-verified proxy=4294967297 (2^32+1) → uint32=1 → [LOW_RECOIL, BLEED_GAS, EXTRA_MONEY]');
+  }
+
   // --- Structural: deck validity ---
   {
     const { sx, sy } = computeOffsets('0110000100b7c4ce');
