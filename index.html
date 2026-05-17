@@ -163,6 +163,7 @@ body {
 }
 .btn-generate:hover { background: rgba(99,102,241,0.3); }
 .error-msg { font-size: 12px; color: #f87171; }
+.warn-msg  { font-size: 12px; color: #fbbf24; }
 
 /* Legend */
 .legend {
@@ -559,7 +560,7 @@ body {
     <div class="config-left">
       <div class="field">
         <label>World Seed</label>
-        <input type="text" id="world-seed" placeholder="e.g. 1234567890" autocomplete="off" spellcheck="false">
+        <input type="text" id="world-seed" placeholder="e.g. 1234567890 (max 2^53)" autocomplete="off" spellcheck="false">
       </div>
     </div>
 
@@ -576,6 +577,7 @@ body {
   <div class="generate-row">
     <button class="btn-generate" id="btn-generate" disabled>Loading WASM…</button>
     <span class="error-msg" id="error-msg"></span>
+    <span class="warn-msg" id="seed-warn-msg"></span>
     <button class="btn-share" id="btn-share">COPY LINK</button>
   </div>
 
@@ -814,6 +816,7 @@ function showError(msg) {
 }
 function clearError() {
   document.getElementById('error-msg').textContent = '';
+  document.getElementById('seed-warn-msg').textContent = '';
 }
 
 var NUM_REROLLS_SHOWN = 3;
@@ -825,6 +828,15 @@ function compute() {
 
   const seedNum = parseInt(seedStr, 10);
   if (isNaN(seedNum) || seedNum < 0) return showError('World seed must be a non-negative integer.');
+  if (seedNum > Number.MAX_SAFE_INTEGER) return showError('World seed must be at most 2^53−1 (9007199254740991). Larger values lose precision in Noita.');
+
+  // Warn when the effective in-game seed is 0 (Noita treats seed 0 as random)
+  if ((seedNum >>> 0) === 0) {
+    document.getElementById('seed-warn-msg').textContent =
+      '⚠ This seed maps to 0 (mod 2^32), which Noita treats as random — results will not match in-game.';
+  } else {
+    document.getElementById('seed-warn-msg').textContent = '';
+  }
 
   const visibleMountains = 7;
 
